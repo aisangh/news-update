@@ -1,0 +1,189 @@
+══ Trending AI News WITH Real Articles (last 7 days) ══
+   Round 1: 2+ news sites (up to 15). Round 2: if round 1 < 15, fill with X-first + other tiebreakers.
+
+ 1. [R1·news] [4367.7] Sam Altman testimony: Musk wanted 'total control' of OpenAI to pas
+    📰 https://www.businessinsider.com/sam-altman-testifies-elon-musk-openai-trial-2026-5?utm_source=reddit&amp;utm_medium=social&amp;utm_campaign=insider-openai-sub-post
+    🏢 businessinsider.com
+    📊 4 outlets (1 major wire/Tier‑1) · ✓ 4 news sites · 1 tier‑1
+    Trending: Google News · Major outlets · Reddit
+    📄 Also on: bbc.com, businessinsider.com, journalrecord.com, techcrunch.com
+    More:
+       · techcrunch.com: The OpenAI trial wraps up, and the Musk founder machine
+       · bbc.com: Elon Musk said control of OpenAI should go to his child
+       · journalrecord.com: OpenAI CEO Sam Altman holds more than $2 billion in com
+    💬 1086 upvotes on r/OpenAI
+    Reel: 👤 Big name
+    2026-05-15
+
+ 2. [R1·news] [3143.8] OpenAI launches ChatGPT for personal finance, will let you connect
+    📰 https://techcrunch.com/2026/05/15/openai-launches-chatgpt-for-personal-finance-will-let-you-connect-bank-accounts/
+    🏢 techcrunch.com
+    📊 3 outlets (0 major wire/Tier‑1) · ✓ 3 news sites · 0 tier‑1
+    Trending: Google News · Major outlets · Twitter/X · Reddit
+    📄 Also on: arstechnica.com, fortune.com, techcrunch.com
+    🐦 2 on X
+       → BREAKING: Apple and OpenAI’s once-blockbuster relationship over Chat
+       → OpenAI released Codex Mobile App Directly on ChatGPT Here's everythi
+    More:
+       · fortune.com: OpenAI CEO Sam Altman says Gen Z and millennials are us
+       · arstechnica.com: OpenAI feels “burned” by Apple’s crappy ChatGPT integra
+       · Google News: OpenAI makes it easier to run shopping ads in ChatGPT
+    💬 131 upvotes on r/OpenAI
+    2026-05-15
+
+ 3. [R1·news] [2354.3] Amazon workers under pressure to up their AI usage are making up t
+    📰 https://www.fastcompany.com/91541586/amazon-workers-pressured-to-up-ai-use-extraneous-tasks
+    🏢 fastcompany.com
+    📊 2 outlets (1 major wire/Tier‑1) · ✓ 2 news sites · 1 tier‑1
+    Trending: Hacker News
+    📄 Also on: fastcompany.com, ft.com
+    More:
+       · ft.com: Amazon staff use AI tool for unnecessary tasks to infla
+    💬 1046 HN engagement
+    2026-05-15
+
+ 4. [R1·news] [2348.0] Google disrupts hackers using AI to exploit an unknown weakness in
+    📰 https://apnews.com/article/google-ai-cybersecurity-exploitation-mythos-926aea7f7dc5e0e61adce3273c55c6d4
+    🏢 apnews.com
+    📊 2 outlets (1 major wire/Tier‑1) · ✓ 2 news sites · 1 tier‑1
+    Trending: Reddit
+    📄 Also on: apnews.com, pcguide.com
+    More:
+       · pcguide.com: Google detects hackers using AI-generated code to bypas
+    💬 171 upvotes on r/artificial
+    2026-05-12
+
+ 5. [R2·X-fill] [1211.0] Clawdmeter turns your Claude Code usage stats into a tiny desktop 
+    📰 https://techcrunch.com/2026/05/14/clawdmeter-turns-your-claude-code-usage-stats-into-a-tiny-desktop-dashboard/
+    🏢 techcrunch.com
+    📊 1 outlets (0 major wire/Tier‑1) · ✓ 1 news site · 0 tier‑1
+    Trending: Major outlets · Twitter/X
+    📄 Also on: techcrunch.com
+    🐦 9 on X
+       → I cancelled my Claude Code sub. I give up.
+       → Claude Code 2.1.142 has been released. 24 CLI changes Highlights: • 
+    2026-05-14
+
+ 6. [R2·X-fill] [1155.3] Anthropic,OpenAI meet religious leaders to discuss faith and AI
+    📰 https://www.fastcompany.com/91538977/openai-anthropic-just-met-religious-leaders-faith-ai-covenant-heres-why
+    🏢 fastcompany.com
+    📊 1 outlets (0 major wire/Tier‑1) · ✓ 1 news site · 0 tier‑1
+    Trending: Google News · Twitter/X · Hacker News
+    📄 Also on: fastcompany.com
+    🐦 4 on X
+       → ANTHROPIC beats OpenAI in business adoption for the first time. per 
+       → The European Commission is in talks with both OpenAI and Anthropic o
+    More:
+       · Google News: Anthropic in Talks to Buy Developer Tools Startup Used 
+       · Google News: OpenAI Debuts $4B AI Services Company As Rival Anthropi
+       · Google News: EU says OpenAI offers to open access to cybersecurity m
+    💬 47 HN engagement
+    2026-05-13
+
+ 7. [R2·X-fill] [1121.2] OpenAI says Codex is coming to your phone
+    📰 https://techcrunch.com/2026/05/14/openai-says-codex-is-coming-to-your-phone/
+    🏢 techcrunch.com
+    📊 1 outlets (0 major wire/Tier‑1) · ✓ 1 news site · 0 tier‑1
+    Trending: Major outlets · Twitter/X
+    📄 Also on: techcrunch.com
+    🐦 3 on X
+       → Codex in the ChatGPT app let your agents work for you from anywhere
+       → Introducing Daybreak: frontier AI for cyber defenders. Daybreak brin
+    2026-05-14
+
+ 8. [R2·X-fill] [1121.1] What happens when AI starts building itself?
+    📰 https://techcrunch.com/2026/05/14/what-happens-when-ai-starts-building-itself/
+    🏢 techcrunch.com
+    📊 1 outlets (0 major wire/Tier‑1) · ✓ 1 news site · 0 tier‑1
+    Trending: Major outlets · Twitter/X
+    📄 Also on: techcrunch.com
+    🐦 3 on X
+       → You know what would be a good AI automation: When I receive those 10
+       → This is what AI looked like when I was doing my PhD in 2008. Tree se
+    2026-05-14
+
+ 9. [R2·X-fill] [1148.8] AI data center project secretly sucked 29 million gallons of water
+    📰 https://www.tomshardware.com/tech-industry/georgia-data-center-used-29-million-gallons-of-water
+    🏢 tomshardware.com
+    📊 1 outlets (0 major wire/Tier‑1) · ✓ 1 news site · 0 tier‑1
+    Trending: Twitter/X · Reddit · Hacker News
+    📄 Also on: tomshardware.com
+    🐦 2 on X
+       → Sanders and AOC introduced a bill to pause ALL AI data center constr
+       → A single AI data center uses as much electricity as 100,000 househol
+    More:
+       · tomshardware.com: AI data center project sucked 29M gallons of water
+    💬 21541 upvotes on r/technology
+    2026-05-11
+
+10. [R2·X-fill] [1140.9] AI data centers face increasing complaints about inaudible but 'fe
+    📰 https://www.tomshardware.com/tech-industry/artificial-intelligence/data-centers-face-increasing-infrasound-complaints-from-neighboring-communities-sounds-do-not-register-on-decibel-meters-but-irritate-local-citizens
+    🏢 tomshardware.com
+    📊 1 outlets (0 major wire/Tier‑1) · ✓ 1 news site · 0 tier‑1
+    Trending: Twitter/X · Reddit
+    📄 Also on: tomshardware.com
+    🐦 2 on X
+       → Not enough people are talking about how much AI is impacting the rol
+       → Here's What Nobody's Telling You About AI Data Centers | Ep. 1780
+    💬 33293 upvotes on r/technology
+    2026-05-10
+
+11. [R2·X-fill] [1125.9] After Shopify and Google said that 50% and 75% of their code is AI
+    📰 https://www.businessinsider.com/airbnb-ceo-ai-write-majority-company-code-managers-hands-on-2026-5
+    🏢 businessinsider.com
+    📊 1 outlets (0 major wire/Tier‑1) · ✓ 1 news site · 0 tier‑1
+    Trending: Twitter/X · Reddit
+    📄 Also on: businessinsider.com
+    🐦 2 on X
+       → I would note that using "hallucinated citations" as incontrovertible
+       → Pastigio AI Calendar Review – The Smart Family Hub That Replaces Goo
+    💬 183 upvotes on r/singularity
+    2026-05-10
+
+12. [R2·X-fill] [1075.9] Trump and Xi's meeting this week could change the course of the AI
+    📰 https://www.abc.net.au/news/2026-05-12/trump-xi-beijing-summit-must-confront-ai-cold-war/106666482?utm_source=abc_news_app&amp;utm_medium=content_shared&amp;utm_campaign=abc_news_app&amp;utm_content=link
+    🏢 abc.net.au
+    📊 1 outlets (0 major wire/Tier‑1) · ✓ 1 news site · 0 tier‑1
+    Trending: Twitter/X · Reddit
+    📄 Also on: abc.net.au
+    🐦 2 on X
+       → Joined a new AI-native company this week and it’s kind of wild how d
+       → This AI-Powered Pedal May Change The Entire Guitar Industry... | Qui
+    💬 5 upvotes on r/artificial
+    2026-05-11
+
+13. [R2·X-fill] [1363.5] I knew my writing students used AI. Their confessions led to a tea
+    📰 https://www.theguardian.com/us-news/ng-interactive/2026/may/10/fiction-writing-professor-ai
+    🏢 theguardian.com
+    📊 1 outlets (1 major wire/Tier‑1) · ✓ 1 news site · 1 tier‑1
+    Trending: Google News · Twitter/X · Hacker News
+    📄 Also on: theguardian.com
+    🐦 1 on X
+       → As the Cardinals are being criticized for seemingly using AI in thei
+    More:
+       · theguardian.com: My writing students were using AI. Their confessions le
+       · Google News: I knew my writing students were using AI. Their confess
+    💬 38 HN engagement
+    2026-05-11
+
+14. [R2·X-fill] [1357.1] Forget the AI job apocalypse. AIs real threat is worker control an
+    📰 https://www.theguardian.com/technology/2026/may/11/ai-worker-control-surveillance
+    🏢 theguardian.com
+    📊 1 outlets (1 major wire/Tier‑1) · ✓ 1 news site · 1 tier‑1
+    Trending: Twitter/X · Hacker News
+    📄 Also on: theguardian.com
+    🐦 1 on X
+       → Trump Vs. Pope Leo, the Real Threat of Ai &amp; Fraying Social Fabri
+    💬 46 HN engagement
+    Reel: ⚠️ Jobs fear
+    2026-05-11
+
+15. [R2·X-fill] [1339.7] WhatsApp launches totally private 'incognito' conversations with i
+    📰 https://www.bbc.com/news/articles/c99lmyr1dnxo?at_medium=RSS&amp;at_campaign=rss
+    🏢 bbc.com
+    📊 1 outlets (1 major wire/Tier‑1) · ✓ 1 news site · 1 tier‑1
+    Trending: Major outlets · Twitter/X
+    📄 Also on: bbc.com
+    🐦 1 on X
+       → incognito chat with meta ai coming to WhatsApp + Meta AI app! people
+    2026-05-13

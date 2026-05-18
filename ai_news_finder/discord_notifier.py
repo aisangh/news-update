@@ -4,6 +4,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
 import requests
@@ -151,7 +152,7 @@ def send_report_file(file_path: str, file_description: str = "📄 Daily AI News
     Send a report file to Discord as an attachment.
 
     Args:
-        file_path: Path to the file to send
+        file_path: Path to the file to send (absolute or relative)
         file_description: Description text for the message
 
     Returns:
@@ -162,13 +163,16 @@ def send_report_file(file_path: str, file_description: str = "📄 Daily AI News
         logger.warning("DISCORD_WEBHOOK_URL not set. Skipping file upload.")
         return False
 
-    if not os.path.isfile(file_path):
-        logger.error(f"File not found: {file_path}")
+    # Convert to absolute path
+    abs_file_path = Path(file_path).resolve()
+    
+    if not abs_file_path.is_file():
+        logger.error(f"File not found: {abs_file_path}")
         return False
 
     try:
-        with open(file_path, "rb") as f:
-            files = {"file": (os.path.basename(file_path), f)}
+        with open(abs_file_path, "rb") as f:
+            files = {"file": (abs_file_path.name, f)}
             data = {"content": file_description}
 
             response = requests.post(
@@ -178,7 +182,7 @@ def send_report_file(file_path: str, file_description: str = "📄 Daily AI News
                 timeout=30,
             )
             response.raise_for_status()
-            logger.info(f"Report file sent successfully: {file_path}")
+            logger.info(f"Report file sent successfully: {abs_file_path}")
             return True
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to send report file to Discord: {e}")

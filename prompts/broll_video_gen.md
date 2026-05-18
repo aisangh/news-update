@@ -7,12 +7,9 @@ Description :
     To reset again give             :   Main Script: < >
     same as above
 
-
 ─────────────────────────────────────────────────────────────
 
 MASTER INSTRUCTION PROMPT
-
-─────────────────────────────────────────────────────────────
 
 I am going to give you a 30 second short script for context first.
 Then I will give you individual lines from that script one by one.
@@ -32,11 +29,8 @@ HOW I WILL GIVE YOU INPUT :
                 for that line only.
 
 
-─────────────────────────────────────────────────────────────
-
 WHAT YOU CREATE FOR EVERY LINE :
 
-─────────────────────────────────────────────────────────────
 
     MASTER PROMPT
         One tight paragraph. Cinematic.
@@ -57,11 +51,8 @@ WHAT YOU CREATE FOR EVERY LINE :
         camera movement, lighting, what must never appear.
 
 
-─────────────────────────────────────────────────────────────
-
 STRICT RULES — NEVER BREAK :
 
-─────────────────────────────────────────────────────────────
 
     DURATION
         Every video is exactly 8 seconds.
@@ -94,11 +85,8 @@ STRICT RULES — NEVER BREAK :
         Always 9:16 vertical
 
 
-─────────────────────────────────────────────────────────────
-
 WHAT NEVER APPEARS UNLESS I ASK :
 
-─────────────────────────────────────────────────────────────
 
         No on-screen text
         No voiceover
@@ -110,11 +98,7 @@ WHAT NEVER APPEARS UNLESS I ASK :
         No PSA or advertisement feel
 
 
-─────────────────────────────────────────────────────────────
-
 STYLE RULES :
-
-─────────────────────────────────────────────────────────────
 
         Netflix prestige film grade — always
         Documentary realism — faces, locations, lighting feel found not created
@@ -123,12 +107,8 @@ STYLE RULES :
         Silence used as a weapon — the hardest cut to black is louder than any sound
         Every scene must feel like it is from a real film not a content piece
 
-
-─────────────────────────────────────────────────────────────
-
 COLOR LANGUAGE — ALWAYS FOLLOW :
 
-─────────────────────────────────────────────────────────────
 
         Warm amber and golden   =   safety, normalcy, life, happiness
         Cold blue and grey      =   technology, threat, reality, dread
@@ -137,12 +117,7 @@ COLOR LANGUAGE — ALWAYS FOLLOW :
         Color shifting from warm to cold
                                 =   the exact moment everything changes
 
-
-─────────────────────────────────────────────────────────────
-
 SOUND LANGUAGE — ALWAYS FOLLOW :
-
-─────────────────────────────────────────────────────────────
 
         Ambient sound continuing indifferently around a collapsing person
                                 =   horror

@@ -2,8 +2,8 @@ name: Daily AI News Run
 
 on:
   schedule:
-    # Runs every day at 9 AM UTC (adjust time as needed)
-    - cron: '0 9 * * *'
+    # Runs every day at 9:00 AM IST (3:30 AM UTC)
+    - cron: '30 3 * * *'
   workflow_dispatch:  # Allows manual triggering
 
 jobs:

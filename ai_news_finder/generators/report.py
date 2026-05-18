@@ -63,73 +63,64 @@ def generate_html_report(
         is_reddit = social == "reddit"
         verified = sc >= 3 and not is_reddit
 
-        badges = []
+        badges_html = ""
         if verified:
-            badges.append('<span class="badge verified">✅ Verified</span>')
+            badges_html += '<span class="badge verified">✅ Verified</span>'
         if is_reddit:
-            badges.append('<span class="badge trending">📱 Reddit</span>')
+            badges_html += '<span class="badge trending">📱 Reddit</span>'
 
-        badge_html = " ".join(badges)
         source_chips = "".join(
-            f'<span class="chip">{_esc(s)}</span>' for s in (story.get("sources") or [])
+            f'<span class="chip">{_esc(s)}</span>' for s in (story.get("sources") or [])[:5]
         )
         first_pub = _first_published(story)
         first_pub_display = _esc(format_date_human(first_pub))
         summary_text = _esc(_story_summary(story))
         hook = _esc(story.get("hook") or "")
-        caption = _esc(story.get("caption") or "")
-        hashtags = _esc(story.get("hashtags") or "")
         title = _esc(story.get("title") or "")
         url = _esc(story.get("url") or "#")
-
-        data_attrs = (
-            f'data-sources="{sc}" data-reddit="{"1" if is_reddit else "0"}" '
-            f'data-date="{_esc(first_pub or "")}" data-rank="{rank}"'
-        )
+        sources = story.get("sources") or []
 
         cards_html.append(
             f"""
-    <article class="story-card" {data_attrs}>
-      <div class="card-header">
-        <span class="rank-badge">#{rank}</span>
-        <span class="source-badge">{sc} source{"s" if sc != 1 else ""}</span>
-        {badge_html}
+    <div class="story-card">
+      <div class="story-header">
+        <div class="rank-badge">#{rank}</div>
+        <div class="story-title-section">
+          <div class="story-meta-row">
+            <span class="badge sources">{sc} source{'s' if sc != 1 else ''}</span>
+            {badges_html}
+          </div>
+          <h2><a href="{url}" target="_blank" rel="noopener">{title}</a></h2>
+        </div>
       </div>
-      <h2><a href="{url}" target="_blank" rel="noopener">{title}</a></h2>
-      <div class="chips">{source_chips}</div>
-      <div class="story-meta">
-        <p class="meta-row"><span class="meta-label">First published</span> {first_pub_display}</p>
-        <div class="summary-block">
-          <span class="meta-label">Summary</span>
-          <p class="summary">{summary_text}</p>
+      
+      <div class="summary">{summary_text}</div>
+      
+      {f'<div class="hook">💡 {hook}</div>' if hook else ''}
+      
+      <button class="collapsible-toggle">
+        ℹ️ More Details <span class="toggle-icon">▼</span>
+      </button>
+      
+      <div class="metadata">
+        <div class="metadata-item">
+          <span class="metadata-label">📅 Published</span>
+          <span class="metadata-value">{first_pub_display}</span>
         </div>
-        <p class="meta-row link-row"><span class="meta-label">Article</span> <a href="{url}" target="_blank" rel="noopener">{url}</a></p>
+        
+        <div class="metadata-item">
+          <span class="metadata-label">📡 Sources ({len(sources)})</span>
+          <div class="chips">
+            {''.join(f'<span class="chip">{_esc(s)}</span>' for s in sources)}
+          </div>
+        </div>
+        
+        <div class="metadata-item">
+          <span class="metadata-label">🔗 Read Article</span>
+          <span class="metadata-value" style="word-break: break-all;">{url}</span>
+        </div>
       </div>
-      <div class="reel-box">
-        <h3>Reel Content</h3>
-        <div class="copy-block">
-          <label>Hook</label>
-          <p class="copy-text hook-text">{hook}</p>
-          <button type="button" class="copy-btn" data-copy="hook">📋 Copy</button>
-        </div>
-        <div class="copy-block">
-          <label>Caption</label>
-          <p class="copy-text caption-text">{caption}</p>
-          <button type="button" class="copy-btn" data-copy="caption">📋 Copy</button>
-        </div>
-        <div class="copy-block">
-          <label>Hashtags</label>
-          <p class="copy-text hashtags-text">{hashtags}</p>
-          <button type="button" class="copy-btn" data-copy="hashtags">📋 Copy</button>
-        </div>
-        <button type="button" class="copy-all-btn">Copy All</button>
-        <textarea class="all-content" hidden>{hook}
-
-{caption}
-
-{hashtags}</textarea>
-      </div>
-    </article>"""
+    </div>"""
         )
 
     cards_joined = "\n".join(cards_html)
@@ -142,300 +133,347 @@ def generate_html_report(
   <title>AI News Reel Report — {generated_at}</title>
   <style>
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    
     body {{
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #0f0f0f;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+      background: #0a0e27;
       color: #e5e5e5;
       line-height: 1.6;
-      padding: 1rem;
-      max-width: 720px;
-      margin: 0 auto;
-    }}
-    header {{
-      text-align: center;
-      padding: 2rem 0 1.5rem;
-      border-bottom: 1px solid #333;
-      margin-bottom: 1.5rem;
-    }}
-    h1 {{
-      font-size: 1.75rem;
-      background: linear-gradient(90deg, #7c3aed, #06b6d4);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }}
-    .subtitle {{ color: #a3a3a3; font-size: 0.95rem; margin-top: 0.5rem; }}
-    .stats-bar {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      justify-content: center;
-      margin-top: 1.25rem;
-      font-size: 0.85rem;
-    }}
-    .stat {{
-      background: #1a1a2e;
-      padding: 0.5rem 1rem;
-      border-radius: 8px;
-      border: 1px solid #333;
-    }}
-    .stat strong {{ color: #06b6d4; }}
-    .toolbar {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-bottom: 1.5rem;
-      align-items: center;
-    }}
-    .toolbar button, .toolbar select {{
-      background: #1a1a2e;
-      color: #e5e5e5;
-      border: 1px solid #444;
-      padding: 0.4rem 0.75rem;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.85rem;
-    }}
-    .toolbar button.active {{
-      border-color: #7c3aed;
-      background: #2d1f4e;
-      color: #c4b5fd;
-    }}
-    .story-card {{
-      background: #1a1a2e;
-      border-radius: 12px;
-      padding: 1.25rem;
-      margin-bottom: 1.25rem;
-      border: 1px solid #2a2a3e;
-    }}
-    .story-card.hidden {{ display: none; }}
-    .card-header {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      align-items: center;
-      margin-bottom: 0.75rem;
-    }}
-    .rank-badge {{
-      background: linear-gradient(135deg, #7c3aed, #06b6d4);
-      color: #fff;
-      font-weight: 700;
-      padding: 0.2rem 0.6rem;
-      border-radius: 6px;
-      font-size: 0.9rem;
-    }}
-    .source-badge {{
-      background: #0f0f0f;
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      color: #06b6d4;
-    }}
-    .badge {{
-      font-size: 0.75rem;
-      padding: 0.15rem 0.5rem;
-      border-radius: 4px;
-    }}
-    .badge.verified {{ background: #14532d; color: #86efac; }}
-    .badge.trending {{ background: #7c2d12; color: #fdba74; }}
-    .story-card h2 {{
-      font-size: 1.15rem;
-      margin-bottom: 0.75rem;
-    }}
-    .story-card h2 a {{ color: #e5e5e5; text-decoration: none; }}
-    .story-card h2 a:hover {{ color: #06b6d4; }}
-    .chips {{ display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.75rem; }}
-    .chip {{
-      background: #0f0f0f;
-      font-size: 0.7rem;
-      padding: 0.15rem 0.45rem;
-      border-radius: 999px;
-      color: #a78bfa;
-    }}
-    .story-meta {{
-      background: #0f0f0f;
-      border-radius: 8px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      border: 1px solid #2a2a3e;
-    }}
-    .meta-label {{
-      display: block;
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #06b6d4;
-      margin-bottom: 0.35rem;
-      font-weight: 600;
-    }}
-    .meta-row {{
-      font-size: 0.9rem;
-      color: #d4d4d4;
-      margin-bottom: 0.85rem;
-    }}
-    .meta-row .meta-label {{
-      display: inline;
-      margin-right: 0.35rem;
-    }}
-    .summary-block {{ margin-bottom: 0.85rem; }}
-    .summary {{
-      color: #e5e5e5;
-      font-size: 0.95rem;
-      line-height: 1.65;
+      padding: 0;
       margin: 0;
     }}
-    .link-row a {{
-      color: #a78bfa;
-      word-break: break-all;
-      font-size: 0.85rem;
+    
+    header {{
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 2rem 1rem 1.5rem;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
     }}
-    .reel-box {{
-      background: #0f0f0f;
-      border-radius: 8px;
-      padding: 1rem;
-      margin-top: 1rem;
-      border-left: 3px solid #7c3aed;
+    
+    h1 {{
+      font-size: 2rem;
+      color: white;
+      margin-bottom: 0.5rem;
+      font-weight: 700;
     }}
-    .reel-box h3 {{
-      font-size: 0.85rem;
-      color: #06b6d4;
-      margin-bottom: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }}
-    .copy-block {{
+    
+    .subtitle {{
+      color: rgba(255,255,255,0.9);
+      font-size: 0.95rem;
       margin-bottom: 1rem;
-      position: relative;
     }}
-    .copy-block label {{
-      font-size: 0.75rem;
-      color: #7c3aed;
+    
+    .stats-bar {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 1rem;
+      font-size: 0.85rem;
+    }}
+    
+    .stat {{
+      background: rgba(255,255,255,0.1);
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: white;
+    }}
+    
+    .stat-value {{ 
+      font-size: 1.5rem;
+      font-weight: 700;
       display: block;
-      margin-bottom: 0.25rem;
     }}
-    .hook-text {{ color: #fbbf24; font-weight: 600; }}
-    .copy-text {{ white-space: pre-wrap; font-size: 0.9rem; padding-right: 4rem; }}
-    .copy-btn, .copy-all-btn {{
-      background: #1a1a2e;
-      border: 1px solid #7c3aed;
-      color: #c4b5fd;
-      padding: 0.25rem 0.5rem;
-      border-radius: 4px;
+    
+    .stat-label {{
       font-size: 0.75rem;
-      cursor: pointer;
+      opacity: 0.9;
       margin-top: 0.25rem;
     }}
-    .copy-btn {{ position: absolute; top: 0; right: 0; }}
-    .copy-all-btn {{
+    
+    main {{
+      max-width: 100%;
+      padding: 0;
+    }}
+    
+    .story-card {{
+      background: #1a1f3a;
+      margin: 0;
+      padding: 1.25rem;
+      border: none;
+      border-bottom: 1px solid #2a2f4a;
+      transition: all 0.3s ease;
+    }}
+    
+    .story-card:active {{
+      background: #252b40;
+    }}
+    
+    .story-header {{
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }}
+    
+    .rank-badge {{
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-weight: 700;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 1rem;
+      flex-shrink: 0;
+      min-width: 35px;
+      text-align: center;
+    }}
+    
+    .story-title-section {{
+      flex: 1;
+    }}
+    
+    .story-card h2 {{
+      font-size: 1.1rem;
+      line-height: 1.4;
+      margin-bottom: 0.5rem;
+      color: white;
+    }}
+    
+    .story-card h2 a {{
+      color: white;
+      text-decoration: none;
+    }}
+    
+    .story-card h2 a:active {{
+      color: #667eea;
+    }}
+    
+    .story-meta-row {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.8rem;
+    }}
+    
+    .badge {{
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }}
+    
+    .badge.verified {{
+      background: #10b981;
+      color: white;
+    }}
+    
+    .badge.trending {{
+      background: #f59e0b;
+      color: white;
+    }}
+    
+    .badge.sources {{
+      background: #3b82f6;
+      color: white;
+    }}
+    
+    .summary {{
+      background: rgba(102, 126, 234, 0.1);
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      border-left: 3px solid #667eea;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #e5e5e5;
+    }}
+    
+    .hook {{
+      background: rgba(245, 158, 11, 0.1);
+      padding: 0.75rem;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+      border-left: 3px solid #f59e0b;
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #fbbf24;
+    }}
+    
+    .collapsible-toggle {{
+      background: transparent;
+      border: 1px solid #3b82f6;
+      color: #60a5fa;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
       width: 100%;
-      padding: 0.5rem;
-      margin-top: 0.5rem;
+      text-align: left;
+      transition: all 0.2s ease;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }}
+    
+    .collapsible-toggle:active {{
+      background: #1e3a8a;
+      border-color: #60a5fa;
+    }}
+    
+    .toggle-icon {{
+      display: inline-block;
+      transition: transform 0.2s ease;
+    }}
+    
+    .collapsible-toggle.open .toggle-icon {{
+      transform: rotate(180deg);
+    }}
+    
+    .metadata {{
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      background: rgba(59, 130, 246, 0.05);
+      border-radius: 6px;
+    }}
+    
+    .metadata.open {{
+      max-height: 500px;
+      padding: 1rem;
+      border: 1px solid #1e40af;
+    }}
+    
+    .metadata-item {{
+      margin-bottom: 0.75rem;
       font-size: 0.85rem;
     }}
+    
+    .metadata-label {{
+      color: #60a5fa;
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+      display: block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }}
+    
+    .metadata-value {{
+      color: #d4d4d8;
+      word-break: break-word;
+    }}
+    
+    .chips {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+    }}
+    
+    .chip {{
+      background: #1e40af;
+      color: #60a5fa;
+      padding: 0.25rem 0.5rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+    }}
+    
     footer {{
       text-align: center;
-      padding: 2rem 0;
+      padding: 2rem 1rem;
       color: #666;
       font-size: 0.85rem;
-      border-top: 1px solid #333;
+      border-top: 1px solid #2a2f4a;
       margin-top: 2rem;
     }}
-    footer a {{ color: #06b6d4; }}
+    
+    footer a {{
+      color: #667eea;
+      text-decoration: none;
+    }}
+    
+    /* Mobile optimizations */
+    @media (max-width: 600px) {{
+      h1 {{
+        font-size: 1.5rem;
+      }}
+      
+      .stats-bar {{
+        grid-template-columns: 1fr 1fr;
+      }}
+      
+      .story-card {{
+        padding: 1rem;
+      }}
+      
+      .story-card h2 {{
+        font-size: 1rem;
+      }}
+      
+      .summary {{
+        font-size: 0.9rem;
+        padding: 0.75rem;
+      }}
+    }}
+    
+    @media (max-width: 400px) {{
+      header {{
+        padding: 1.5rem 0.75rem 1rem;
+      }}
+      
+      h1 {{
+        font-size: 1.3rem;
+      }}
+      
+      .subtitle {{
+        font-size: 0.85rem;
+      }}
+      
+      .stat-value {{
+        font-size: 1.25rem;
+      }}
+    }}
   </style>
 </head>
 <body>
   <header>
-    <h1>🤖 AI News Reel Report</h1>
-    <p class="subtitle">Top {n} viral AI stories • Last {days} days • Generated {generated_at}</p>
+    <h1>🤖 AI News Report</h1>
+    <p class="subtitle">Top {n} viral AI stories • {days} day{'s' if days != 1 else ''} • {generated_at}</p>
     <div class="stats-bar">
-      <span class="stat"><strong>{total_scanned}</strong> stories scanned</span>
-      <span class="stat"><strong>{len(sources_used)}</strong> sources used</span>
-      <span class="stat"><strong>{verified_count}</strong> confirmed on 3+ sources</span>
+      <div class="stat">
+        <span class="stat-value">{total_scanned}</span>
+        <span class="stat-label">📡 Scanned</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value">{verified_count}</span>
+        <span class="stat-label">✅ Verified</span>
+      </div>
     </div>
   </header>
 
-  <div class="toolbar">
-    <span>Filter:</span>
-    <button type="button" class="filter-btn active" data-filter="all">All</button>
-    <button type="button" class="filter-btn" data-filter="verified">3+ Sources</button>
-    <button type="button" class="filter-btn" data-filter="reddit">Reddit</button>
-    <span style="margin-left:0.5rem">Sort:</span>
-    <select id="sort-select">
-      <option value="coverage">By Coverage</option>
-      <option value="date">By Date</option>
-    </select>
-  </div>
-
-  <div id="stories-container">
+  <main id="stories-container">
 {cards_joined}
-  </div>
+  </main>
 
   <footer>
-    <p>Generated by AI News Finder • Free &amp; Open Source</p>
-    <p><a href="https://github.com/" target="_blank" rel="noopener">Project README</a></p>
+    <p>✨ Generated by AI News Finder • Free & Open Source</p>
+    <p><a href="https://github.com/aisangh/news-update" target="_blank" rel="noopener">📖 View on GitHub</a></p>
   </footer>
 
   <script>
-    const container = document.getElementById('stories-container');
-
-    function copyText(text, btn) {{
-      navigator.clipboard.writeText(text).then(() => {{
-        const orig = btn.textContent;
-        btn.textContent = '✅ Copied!';
-        setTimeout(() => {{ btn.textContent = orig; }}, 1500);
-      }});
-    }}
-
-    document.querySelectorAll('.copy-btn').forEach(btn => {{
-      btn.addEventListener('click', () => {{
-        const block = btn.closest('.copy-block');
-        const text = block.querySelector('.copy-text').textContent;
-        copyText(text, btn);
+    // Toggle metadata sections
+    document.querySelectorAll('.collapsible-toggle').forEach(toggle => {{
+      toggle.addEventListener('click', function() {{
+        const metadata = this.nextElementSibling;
+        this.classList.toggle('open');
+        metadata.classList.toggle('open');
       }});
     }});
-
-    document.querySelectorAll('.copy-all-btn').forEach(btn => {{
-      btn.addEventListener('click', () => {{
-        const card = btn.closest('.story-card');
-        const ta = card.querySelector('.all-content');
-        copyText(ta.value, btn);
-      }});
-    }});
-
-    let currentFilter = 'all';
-    document.querySelectorAll('.filter-btn').forEach(btn => {{
-      btn.addEventListener('click', () => {{
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentFilter = btn.dataset.filter;
-        applyFilterSort();
-      }});
-    }});
-
-    document.getElementById('sort-select').addEventListener('change', applyFilterSort);
-
-    function applyFilterSort() {{
-      const cards = Array.from(container.querySelectorAll('.story-card'));
-      const sortBy = document.getElementById('sort-select').value;
-
-      cards.forEach(card => {{
-        const sc = parseInt(card.dataset.sources, 10);
-        const isReddit = card.dataset.reddit === '1';
-        let show = true;
-        if (currentFilter === 'verified') show = sc >= 3 && !isReddit;
-        if (currentFilter === 'reddit') show = isReddit;
-        card.classList.toggle('hidden', !show);
-      }});
-
-      const visible = cards.filter(c => !c.classList.contains('hidden'));
-      visible.sort((a, b) => {{
-        if (sortBy === 'coverage') {{
-          return parseInt(b.dataset.sources, 10) - parseInt(a.dataset.sources, 10);
-        }}
-        return (b.dataset.date || '').localeCompare(a.dataset.date || '');
-      }});
-      visible.forEach(c => container.appendChild(c));
-    }}
   </script>
 </body>
 </html>"""

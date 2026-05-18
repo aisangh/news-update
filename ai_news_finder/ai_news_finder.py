@@ -203,19 +203,16 @@ def main() -> int:
         report_file=f"reports/{output_path.name}",
     )
     
-    # Debug: Print file info
-    print(f"\n📋 Debug: Text file path: {text_path}")
-    print(f"📋 Debug: File exists: {text_path.exists()}")
-    print(f"📋 Debug: File absolute path: {text_path.resolve()}")
-    
-    # Send the text report file to Discord
-    if text_path.exists():
+    # Send the HTML report file to Discord (interactive, mobile-friendly)
+    if output_path.exists():
         send_report_file(
-            str(text_path.resolve()),
-            f"📄 Daily AI News Report - {today}\n\n{len(selected)} stories selected from {len(sources_used)} sources"
+            str(output_path.resolve()),
+            f"📱 Interactive Report - {today}\n{len(selected)} top AI stories • {len(sources_used)} sources • Click to expand details"
         )
     else:
-        print(f"⚠️  Warning: Text file not found at {text_path}")
+        print(f"⚠️  Warning: HTML report not found at {output_path}")
+    
+    return 0
     
     return 0
 

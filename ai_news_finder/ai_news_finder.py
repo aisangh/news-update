@@ -12,6 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from collectors import collect_reddit, collect_rss
+from discord_notifier import send_error_notification, send_report_summary, send_success_notification
 from generators import generate_html_report, generate_reel_content, generate_text_report
 from generators.report import export_json, format_date_human, _first_published, _story_summary
 from processors import filter_ai_stories, group_stories, select_top_stories
@@ -62,6 +63,11 @@ def main() -> int:
 
     if args.days < 1:
         print("Error: --days must be at least 1", file=sys.stderr)
+        send_error_notification(
+            title="❌ AI News Finder Configuration Error",
+            message="Invalid --days parameter provided.",
+            error_details="--days must be at least 1",
+        )
         return 1
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=args.days)
@@ -88,6 +94,11 @@ def main() -> int:
             "\nNo stories collected from any source. Check your network connection "
             "and try again.",
             file=sys.stderr,
+        )
+        send_error_notification(
+            title="❌ AI News Finder Collection Failed",
+            message="No stories were collected from any source.",
+            error_details="Check your network connection and try again. Verify RSS feeds are accessible.",
         )
         return 1
 
@@ -121,6 +132,11 @@ def main() -> int:
 
     if not selected:
         print("\nNo AI stories matched your criteria. Try increasing --days.", file=sys.stderr)
+        send_error_notification(
+            title="❌ AI News Finder Selection Failed",
+            message="No AI stories matched the selection criteria.",
+            error_details=f"Scanned {len(groups)} story groups but none matched filters. Try increasing --days.",
+        )
         return 1
 
     # Layer 5: reel content
@@ -178,6 +194,15 @@ def main() -> int:
 
     print(f"📄 HTML report: reports/{output_path.name}")
     print(f"📄 Text report:  reports/{text_path.name}")
+    
+    # Send Discord notification with report summary
+    send_report_summary(
+        total_stories=len(selected),
+        sources_count=len(sources_used),
+        verified_count=verified_count,
+        report_file=f"reports/{output_path.name}",
+    )
+    
     return 0
 
 

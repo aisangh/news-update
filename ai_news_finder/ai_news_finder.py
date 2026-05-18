@@ -12,7 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from collectors import collect_reddit, collect_rss
-from discord_notifier import send_error_notification, send_report_summary, send_success_notification
+from discord_notifier import send_error_notification, send_report_file, send_report_summary, send_success_notification
 from generators import generate_html_report, generate_reel_content, generate_text_report
 from generators.report import export_json, format_date_human, _first_published, _story_summary
 from processors import filter_ai_stories, group_stories, select_top_stories
@@ -201,6 +201,12 @@ def main() -> int:
         sources_count=len(sources_used),
         verified_count=verified_count,
         report_file=f"reports/{output_path.name}",
+    )
+    
+    # Send the text report file to Discord
+    send_report_file(
+        str(text_path),
+        f"📄 Daily AI News Report - {today}\n\n{len(selected)} stories selected from {len(sources_used)} sources"
     )
     
     return 0

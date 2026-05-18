@@ -146,6 +146,48 @@ def send_report_summary(
     )
 
 
+def send_report_file(file_path: str, file_description: str = "📄 Daily AI News Report") -> bool:
+    """
+    Send a report file to Discord as an attachment.
+
+    Args:
+        file_path: Path to the file to send
+        file_description: Description text for the message
+
+    Returns:
+        True if successful, False otherwise
+    """
+    webhook_url = get_discord_webhook_url()
+    if not webhook_url:
+        logger.warning("DISCORD_WEBHOOK_URL not set. Skipping file upload.")
+        return False
+
+    if not os.path.isfile(file_path):
+        logger.error(f"File not found: {file_path}")
+        return False
+
+    try:
+        with open(file_path, "rb") as f:
+            files = {"file": (os.path.basename(file_path), f)}
+            data = {"content": file_description}
+
+            response = requests.post(
+                webhook_url,
+                files=files,
+                data=data,
+                timeout=30,
+            )
+            response.raise_for_status()
+            logger.info(f"Report file sent successfully: {file_path}")
+            return True
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to send report file to Discord: {e}")
+        return False
+    except IOError as e:
+        logger.error(f"Failed to read report file: {e}")
+        return False
+
+
 if __name__ == "__main__":
     # Test the Discord notifier
     logging.basicConfig(level=logging.INFO)

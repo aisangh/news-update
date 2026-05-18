@@ -25,6 +25,8 @@ jobs:
 
       - name: Run AI News Finder
         id: run-script
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python run.py --days 1
 
       - name: Send Discord notification on success

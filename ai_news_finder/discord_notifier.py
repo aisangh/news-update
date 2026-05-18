@@ -165,29 +165,41 @@ def send_report_file(file_path: str, file_description: str = "📄 Daily AI News
 
     # Convert to absolute path
     abs_file_path = Path(file_path).resolve()
+    print(f"[Discord] Attempting to upload file: {abs_file_path}")
+    print(f"[Discord] File exists: {abs_file_path.exists()}")
     
     if not abs_file_path.is_file():
+        print(f"[Discord] ❌ File not found: {abs_file_path}")
         logger.error(f"File not found: {abs_file_path}")
         return False
 
     try:
+        print(f"[Discord] Opening file: {abs_file_path.name}")
         with open(abs_file_path, "rb") as f:
+            file_size = abs_file_path.stat().st_size
+            print(f"[Discord] File size: {file_size} bytes")
+            
             files = {"file": (abs_file_path.name, f)}
             data = {"content": file_description}
 
+            print(f"[Discord] Sending to Discord webhook...")
             response = requests.post(
                 webhook_url,
                 files=files,
                 data=data,
                 timeout=30,
             )
+            print(f"[Discord] Response status: {response.status_code}")
             response.raise_for_status()
+            print(f"[Discord] ✅ File uploaded successfully!")
             logger.info(f"Report file sent successfully: {abs_file_path}")
             return True
     except requests.exceptions.RequestException as e:
+        print(f"[Discord] ❌ Request failed: {e}")
         logger.error(f"Failed to send report file to Discord: {e}")
         return False
     except IOError as e:
+        print(f"[Discord] ❌ IO Error: {e}")
         logger.error(f"Failed to read report file: {e}")
         return False
 

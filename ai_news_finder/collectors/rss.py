@@ -389,7 +389,7 @@ def _article_matches_title(title: str, text: str) -> bool:
     title_ai_terms = {term for term in ai_terms if term in title_clean}
     if title_ai_terms and not any(term in text_clean for term in title_ai_terms):
         return False
-    return len(overlap) >= 3 or bool(title_ai_terms and overlap)
+    return len(overlap) >= 2 or bool(title_ai_terms and overlap)
 
 
 def _article_title_matches(expected_title: str, article_titles: list[str]) -> bool:
@@ -405,9 +405,9 @@ def _article_title_matches(expected_title: str, article_titles: list[str]) -> bo
         if expected in actual or actual in expected:
             return True
         overlap = expected_keywords & actual_keywords
-        if len(overlap) >= max(3, min(6, len(expected_keywords) - 1)):
+        if len(overlap) >= max(2, min(5, len(expected_keywords) - 1)):
             return True
-        if SequenceMatcher(None, expected, actual).ratio() >= 0.58:
+        if SequenceMatcher(None, expected, actual).ratio() >= 0.50:
             return True
     return False
 
@@ -428,9 +428,9 @@ def _prefer_fuller_summary(ranked_summary: str, article_summary: str) -> str:
 
 def _is_detailed_article_summary(summary: str) -> bool:
     clean = _clean_feed_text(summary)
-    if len(clean.split()) < 80:
+    if len(clean.split()) < 60:
         return False
-    return len(_sentence_split(clean)) >= 3
+    return len(_sentence_split(clean)) >= 2
 
 
 def _resolve_redirect_url(url: str) -> str:
@@ -457,19 +457,41 @@ def fetch_article_details(url: str, title: str = "") -> dict:
     """Fetch article metadata and paragraph text for richer reporting."""
     if not url:
         return {}
-    try:
-        resp = requests.get(
-            url,
-            headers={
-                "User-Agent": USER_AGENT,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            },
-            timeout=TIMEOUT,
-            allow_redirects=True,
-        )
-        resp.raise_for_status()
-    except Exception as exc:
-        logger.warning("Article summary fetch failed (%s): %s", url, exc)
+
+    user_agents = [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    ]
+
+    for ua in user_agents:
+        try:
+            resp = requests.get(
+                url,
+                headers={
+                    "User-Agent": ua,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Cache-Control": "no-cache",
+                    "Referer": "https://www.google.com/",
+                },
+                timeout=TIMEOUT,
+                allow_redirects=True,
+            )
+            resp.raise_for_status()
+            break
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code in (403, 401):
+                logger.debug(f"Access blocked ({e.response.status_code}) for {url}, trying next UA...")
+                continue
+            logger.debug("Article summary fetch failed (%s): %s", url, e)
+            return {}
+        except Exception as exc:
+            logger.debug("Article summary fetch failed (%s): %s", url, exc)
+            return {}
+    else:
+        logger.debug("All User-Agents blocked for %s", url)
         return {}
 
     parser = _MetaSummaryParser()
@@ -554,9 +576,10 @@ def _read_more_links(story: dict, limit: int = 3) -> list[dict[str, str]]:
 
 def enrich_story_summaries(stories: list[dict]) -> None:
     """Improve selected stories with richer summaries and read-further links."""
-    for story in stories:
+    for idx, story in enumerate(stories, 1):
         title = story.get("title") or ""
-        story["read_more_links"] = _read_more_links(story, limit=3)
+        original_summary = story.get("summary") or ""
+        story["read_more_links"] = _read_more_links(story, limit=5)
         article_texts: list[str] = []
         detail_texts: list[str] = []
 
@@ -568,6 +591,7 @@ def enrich_story_summaries(stories: list[dict]) -> None:
                     link["url"] = fallback_url
                     details = fetch_article_details(fallback_url, title)
             if not details:
+                logger.debug(f"Story #{idx}: Failed to fetch details from {link['url']}")
                 continue
             final_url = details.get("url") or link["url"]
             if final_url:
@@ -601,6 +625,10 @@ def enrich_story_summaries(stories: list[dict]) -> None:
                 story["detailed_summary"] = fetched
                 if fetched not in summaries:
                     summaries.append(fetched)
+            elif original_summary and len(original_summary.split()) >= 30:
+                story["summary"] = original_summary
+            else:
+                logger.debug(f"Story #{idx} ({title[:50]}...): No detailed summary found")
 
 
 def _entry_summary(entry: Any) -> str:

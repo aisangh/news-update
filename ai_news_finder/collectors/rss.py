@@ -233,6 +233,15 @@ def _build_detailed_summary(title: str, snippets: list[str]) -> str:
     return summary
 
 
+def _best_article_summary(title: str, snippets: list[str]) -> str:
+    """Choose the best usable article text when sentence extraction is sparse."""
+    candidates = [_clean_feed_text(s) for s in snippets]
+    candidates = [c for c in candidates if c and not _looks_weak_summary(c, title)]
+    if not candidates:
+        return ""
+    return max(candidates, key=lambda c: min(len(c), 600))
+
+
 def fetch_article_details(url: str, title: str = "") -> dict:
     """Fetch article metadata and paragraph text for richer reporting."""
     if not url or _is_redirect_url(url):
@@ -261,11 +270,12 @@ def fetch_article_details(url: str, title: str = "") -> dict:
     candidates = [_clean_feed_text(c) for c in parser.candidates]
     meta_summaries = [c for c in candidates if c and not _looks_weak_summary(c, title)]
     paragraphs = [p for p in parser.paragraphs if p and not _looks_weak_summary(p, title)]
-    detailed_summary = _build_detailed_summary(title, [*meta_summaries, *paragraphs[:12]])
+    detail_snippets = [*meta_summaries, *paragraphs[:12]]
+    detailed_summary = _build_detailed_summary(title, detail_snippets)
     return {
         "url": resp.url,
         "meta_summary": max(meta_summaries, key=len) if meta_summaries else "",
-        "detailed_summary": detailed_summary,
+        "detailed_summary": detailed_summary or _best_article_summary(title, detail_snippets),
         "paragraphs": paragraphs[:8],
     }
 
@@ -324,15 +334,13 @@ def enrich_story_summaries(stories: list[dict]) -> None:
             if text and text not in summaries:
                 summaries.append(text)
 
-        if story["read_more_links"]:
-            detailed = _build_detailed_summary(title, detail_texts)
-        else:
-            detailed = _build_detailed_summary(title, [*detail_texts, *summaries])
+        summary_pool = detail_texts if story["read_more_links"] else [*detail_texts, *summaries]
+        detailed = _build_detailed_summary(title, summary_pool) or _best_article_summary(title, summary_pool)
 
         if detailed:
             story["detailed_summary"] = detailed
             story["summary"] = detailed
-        elif not story["read_more_links"] and _looks_weak_summary(story.get("summary") or "", title):
+        elif _looks_weak_summary(story.get("summary") or "", title):
             fetched = fetch_article_summary(story.get("url") or "", title)
             if fetched:
                 story["summary"] = fetched

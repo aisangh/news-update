@@ -32,10 +32,7 @@ def format_date_human(raw: str | None) -> str:
 
 
 def _story_summary(story: dict) -> str:
-    if _read_more_links(story):
-        raw = story.get("detailed_summary") or ""
-    else:
-        raw = story.get("detailed_summary") or _best_summary_candidate(story)
+    raw = story.get("detailed_summary") or _best_summary_candidate(story)
     if raw:
         clean = _clean_summary_text(raw)
         if clean:

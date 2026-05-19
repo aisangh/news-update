@@ -32,12 +32,14 @@ def format_date_human(raw: str | None) -> str:
 
 
 def _story_summary(story: dict) -> str:
-    raw = story.get("detailed_summary") or _best_summary_candidate(story)
+    raw = story.get("detailed_summary") or ""
+    if not raw and not _read_more_links(story):
+        raw = _best_summary_candidate(story)
     if raw:
         clean = _clean_summary_text(raw)
         if clean:
             title = _clean_summary_text(story.get("title") or "")
-            if _looks_like_title_only(clean, title):
+            if _looks_like_any_title(clean, story):
                 return "No summary available for this story."
             return _trim_to_sentences(clean, max_words=260)
     return "No summary available for this story."
@@ -79,12 +81,17 @@ def _looks_like_title_only(summary: str, title: str) -> bool:
     return SequenceMatcher(None, summary_clean, title_clean).ratio() >= 0.86
 
 
+def _looks_like_any_title(summary: str, story: dict) -> bool:
+    titles = [story.get("title") or "", *(story.get("all_titles") or [])]
+    return any(_looks_like_title_only(summary, title) for title in titles if title)
+
+
 def _best_summary_candidate(story: dict) -> str:
     title = story.get("title") or ""
     candidates = list(story.get("all_summaries") or [])
     if story.get("summary"):
         candidates.append(story["summary"])
-    candidates = [c for c in candidates if c]
+    candidates = [c for c in candidates if c and not _looks_like_any_title(_clean_summary_text(c), story)]
     if not candidates:
         return ""
     return max(candidates, key=lambda c: _candidate_score(c, title))

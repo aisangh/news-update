@@ -7,6 +7,7 @@ import html
 import json
 import re
 from datetime import datetime, timezone
+from difflib import SequenceMatcher
 from functools import lru_cache
 from html.parser import HTMLParser
 from typing import Any
@@ -51,10 +52,13 @@ class _MetaSummaryParser(HTMLParser):
         self.paragraphs: list[str] = []
         self.json_ld_blocks: list[str] = []
         self.canonical_urls: list[str] = []
+        self.titles: list[str] = []
         self._capture_paragraph = False
         self._capture_json_ld = False
+        self._capture_title = False
         self._paragraph_parts: list[str] = []
         self._json_ld_parts: list[str] = []
+        self._title_parts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_name = tag.lower()
@@ -65,6 +69,8 @@ class _MetaSummaryParser(HTMLParser):
                 self.candidates.append(attr_map.get("content", ""))
             if key == "og:url" and attr_map.get("content"):
                 self.canonical_urls.append(attr_map["content"])
+            if key in {"og:title", "twitter:title"} and attr_map.get("content"):
+                self.titles.append(_clean_feed_text(attr_map["content"]))
         elif tag_name == "link":
             attr_map = {k.lower(): v or "" for k, v in attrs}
             rel = (attr_map.get("rel") or "").lower()
@@ -80,6 +86,9 @@ class _MetaSummaryParser(HTMLParser):
             if "ld+json" in script_type:
                 self._capture_json_ld = True
                 self._json_ld_parts = []
+        elif tag_name in {"h1", "title"}:
+            self._capture_title = True
+            self._title_parts = []
 
     def handle_endtag(self, tag: str) -> None:
         tag_name = tag.lower()
@@ -95,12 +104,20 @@ class _MetaSummaryParser(HTMLParser):
                 self.json_ld_blocks.append(block)
             self._capture_json_ld = False
             self._json_ld_parts = []
+        elif tag_name in {"h1", "title"} and self._capture_title:
+            title = _clean_feed_text(" ".join(self._title_parts))
+            if title:
+                self.titles.append(title)
+            self._capture_title = False
+            self._title_parts = []
 
     def handle_data(self, data: str) -> None:
         if self._capture_paragraph:
             self._paragraph_parts.append(data)
         elif self._capture_json_ld:
             self._json_ld_parts.append(data)
+        elif self._capture_title:
+            self._title_parts.append(data)
 
 
 def _google_news_url(query: str) -> str:
@@ -178,7 +195,24 @@ def _is_redirect_url(url: str) -> bool:
 
 
 def _sentence_split(text: str) -> list[str]:
-    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+    protected = text
+    replacements = {
+        "U.S.": "U<S>",
+        "U.K.": "U<K>",
+        "E.U.": "E<U>",
+        "Mr.": "Mr<dot>",
+        "Ms.": "Ms<dot>",
+        "Dr.": "Dr<dot>",
+    }
+    for original, marker in replacements.items():
+        protected = protected.replace(original, marker)
+    sentences = []
+    for sentence in re.split(r"(?<=[.!?])\s+", protected):
+        for original, marker in replacements.items():
+            sentence = sentence.replace(marker, original)
+        if sentence.strip():
+            sentences.append(sentence.strip())
+    return sentences
 
 
 def _jsonld_article_texts(blocks: list[str]) -> list[str]:
@@ -339,6 +373,45 @@ def _best_article_summary(title: str, snippets: list[str]) -> str:
     return summary
 
 
+def _article_matches_title(title: str, text: str) -> bool:
+    title_clean = _clean_feed_text(title).lower()
+    text_clean = _clean_feed_text(text).lower()
+    if not title_clean or not text_clean:
+        return True
+
+    title_keywords = _keywords(title_clean)
+    text_keywords = _keywords(text_clean)
+    overlap = title_keywords & text_keywords
+    ai_terms = {
+        "ai", "anthropic", "claude", "chatgpt", "gemini", "openai", "nvidia",
+        "artificial intelligence", "machine learning", "llm",
+    }
+    title_ai_terms = {term for term in ai_terms if term in title_clean}
+    if title_ai_terms and not any(term in text_clean for term in title_ai_terms):
+        return False
+    return len(overlap) >= 3 or bool(title_ai_terms and overlap)
+
+
+def _article_title_matches(expected_title: str, article_titles: list[str]) -> bool:
+    expected = _clean_title_for_search(expected_title).lower()
+    expected_keywords = _keywords(expected)
+    if not expected or not article_titles:
+        return True
+    for article_title in article_titles:
+        actual = _clean_title_for_search(article_title).lower()
+        if not actual:
+            continue
+        actual_keywords = _keywords(actual)
+        if expected in actual or actual in expected:
+            return True
+        overlap = expected_keywords & actual_keywords
+        if len(overlap) >= max(3, min(6, len(expected_keywords) - 1)):
+            return True
+        if SequenceMatcher(None, expected, actual).ratio() >= 0.58:
+            return True
+    return False
+
+
 def _prefer_fuller_summary(ranked_summary: str, article_summary: str) -> str:
     if not ranked_summary:
         return article_summary
@@ -351,6 +424,13 @@ def _prefer_fuller_summary(ranked_summary: str, article_summary: str) -> str:
     if ranked_words < 100 and article_words > ranked_words + 20:
         return article_summary
     return ranked_summary
+
+
+def _is_detailed_article_summary(summary: str) -> bool:
+    clean = _clean_feed_text(summary)
+    if len(clean.split()) < 80:
+        return False
+    return len(_sentence_split(clean)) >= 3
 
 
 def _resolve_redirect_url(url: str) -> str:
@@ -394,7 +474,7 @@ def fetch_article_details(url: str, title: str = "") -> dict:
 
     parser = _MetaSummaryParser()
     try:
-        parser.feed(resp.text[:200_000])
+        parser.feed(resp.text[:1_000_000])
     except Exception:
         return {}
 
@@ -406,6 +486,11 @@ def fetch_article_details(url: str, title: str = "") -> dict:
     meta_summaries = [c for c in candidates if c and not _looks_weak_summary(c, title)]
     paragraphs = [p for p in parser.paragraphs if p]
     article_texts = [*jsonld_summaries, *paragraphs[:30]]
+    article_text = "\n".join(article_texts)
+    if not _article_title_matches(title, parser.titles):
+        return {}
+    if article_text and not _article_matches_title(title, article_text):
+        return {}
     detail_snippets = [*article_texts, *meta_summaries]
     detailed_summary = _build_detailed_summary(title, detail_snippets)
     article_summary = _best_article_summary(title, detail_snippets)
@@ -417,7 +502,7 @@ def fetch_article_details(url: str, title: str = "") -> dict:
         "url": canonical_url or resp.url,
         "meta_summary": max(meta_summaries, key=len) if meta_summaries else "",
         "detailed_summary": _prefer_fuller_summary(detailed_summary, article_summary),
-        "article_text": "\n".join(article_texts),
+        "article_text": article_text,
         "paragraphs": paragraphs[:30],
     }
 
@@ -428,13 +513,19 @@ def fetch_article_summary(url: str, title: str = "") -> str:
     return details.get("detailed_summary") or details.get("meta_summary") or ""
 
 
-def _resolve_article_link(title: str, url: str, source_home: str) -> str:
+def _resolve_article_link(title: str, url: str, source_home: str, source: str = "") -> str:
     if not _is_redirect_url(url):
         return url
-    discovered = discover_article_url(title, source_home)
+    resolved = _resolve_redirect_url(url)
+    if resolved:
+        return resolved
+    source_home = source_home or _source_home_from_label(source)
+    discovered = discover_article_url(title, source_home) if source_home else ""
+    if not discovered:
+        discovered = discover_article_url_by_source(title, source)
     if discovered:
         return discovered
-    return _resolve_redirect_url(url) or url
+    return url
 
 
 def _read_more_links(story: dict, limit: int = 3) -> list[dict[str, str]]:
@@ -449,7 +540,7 @@ def _read_more_links(story: dict, limit: int = 3) -> list[dict[str, str]]:
         seen.add(url)
         source = sources[idx] if idx < len(sources) else urlparse(url).netloc or "Article"
         source_home = source_homes[idx] if idx < len(source_homes) else (source_homes[0] if source_homes else "")
-        article_url = _resolve_article_link(story.get("title") or "", url, source_home)
+        article_url = _resolve_article_link(story.get("title") or "", url, source_home, source)
         links.append({
             "url": article_url,
             "source": source,
@@ -471,6 +562,11 @@ def enrich_story_summaries(stories: list[dict]) -> None:
 
         for link in story["read_more_links"]:
             details = fetch_article_details(link["url"], title)
+            if not details and _is_redirect_url(link.get("original_url") or ""):
+                fallback_url = discover_article_url_by_source(title, link.get("source") or "")
+                if fallback_url and fallback_url != link["url"]:
+                    link["url"] = fallback_url
+                    details = fetch_article_details(fallback_url, title)
             if not details:
                 continue
             final_url = details.get("url") or link["url"]
@@ -495,13 +591,14 @@ def enrich_story_summaries(stories: list[dict]) -> None:
             _best_article_summary(title, summary_pool),
         )
 
-        if detailed:
+        if detailed and _is_detailed_article_summary(detailed):
             story["detailed_summary"] = detailed
             story["summary"] = detailed
         elif _looks_weak_summary(story.get("summary") or "", title):
             fetched = fetch_article_summary(story.get("url") or "", title)
-            if fetched:
+            if fetched and _is_detailed_article_summary(fetched):
                 story["summary"] = fetched
+                story["detailed_summary"] = fetched
                 if fetched not in summaries:
                     summaries.append(fetched)
 
@@ -555,10 +652,50 @@ def _clean_title_for_search(title: str) -> str:
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+def _slugify_title(title: str) -> str:
+    cleaned = _clean_title_for_search(title).lower()
+    cleaned = re.sub(r"[^a-z0-9]+", "-", cleaned)
+    return cleaned.strip("-")
+
+
 def _same_site(url: str, source_home: str) -> bool:
     candidate_host = urlparse(url or "").netloc.lower().removeprefix("www.")
     source_host = urlparse(source_home or "").netloc.lower().removeprefix("www.")
     return bool(candidate_host and source_host and (candidate_host == source_host or candidate_host.endswith("." + source_host)))
+
+
+SOURCE_HOME_BY_LABEL = {
+    "android authority": "https://www.androidauthority.com",
+    "android police": "https://www.androidpolice.com",
+    "ars technica": "https://arstechnica.com",
+    "gizmodo": "https://gizmodo.com",
+    "investing.com": "https://www.investing.com",
+    "mashable": "https://mashable.com",
+    "mit tech review": "https://www.technologyreview.com",
+    "pbs": "https://www.pbs.org",
+    "techcrunch": "https://techcrunch.com",
+    "techcrunch ai": "https://techcrunch.com",
+    "the street": "https://www.thestreet.com",
+    "thestreet": "https://www.thestreet.com",
+    "the verge": "https://www.theverge.com",
+    "venturebeat": "https://venturebeat.com",
+    "venturebeat ai": "https://venturebeat.com",
+    "wired": "https://www.wired.com",
+    "wired ai": "https://www.wired.com",
+    "zdnet": "https://www.zdnet.com",
+    "zdnet ai": "https://www.zdnet.com",
+}
+
+
+def _source_home_from_label(source: str) -> str:
+    clean = re.sub(r"\s+", " ", (source or "").strip()).lower()
+    if not clean:
+        return ""
+    if clean in SOURCE_HOME_BY_LABEL:
+        return SOURCE_HOME_BY_LABEL[clean]
+    if "." in clean and " " not in clean:
+        return "https://" + clean.removeprefix("www.")
+    return ""
 
 
 def _decode_ddg_href(href: str) -> str:
@@ -570,6 +707,68 @@ def _decode_ddg_href(href: str) -> str:
     return href
 
 
+def _link_matches_title(href: str, result_text: str, title: str) -> bool:
+    search_title = _clean_title_for_search(title)
+    title_terms = _keywords(title)
+    overlap = _keywords(result_text) & title_terms
+    result_terms = _keywords(result_text + " " + href)
+    return (
+        len(overlap) >= 2
+        or len(result_terms & title_terms) >= 3
+        or search_title.lower() in result_text.lower()
+        or len(result_terms & title_terms) >= max(3, min(5, len(title_terms) - 1))
+    )
+
+
+def _discover_from_publisher_search(title: str, source_home: str) -> str:
+    if not title or not source_home:
+        return ""
+    search_title = _clean_title_for_search(title)
+    try:
+        resp = requests.get(
+            source_home.rstrip("/") + "/",
+            params={"s": search_title},
+            headers={"User-Agent": BROWSER_USER_AGENT},
+            timeout=TIMEOUT,
+        )
+        resp.raise_for_status()
+    except Exception as exc:
+        logger.warning("Publisher site search failed (%s): %s", title, exc)
+        return ""
+
+    for match in re.finditer(r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', resp.text, flags=re.IGNORECASE | re.DOTALL):
+        href = html.unescape(match.group(1))
+        result_text = _clean_feed_text(match.group(2))
+        if href.startswith("/"):
+            parsed_home = urlparse(source_home)
+            href = f"{parsed_home.scheme}://{parsed_home.netloc}{href}"
+        if not href.startswith("http") or not _same_site(href, source_home):
+            continue
+        parsed = urlparse(href)
+        if parsed.path in ("", "/") or any(part in parsed.path for part in ("/tag/", "/category/", "/author/")):
+            continue
+        if _link_matches_title(href, result_text, title):
+            return href
+    return ""
+
+
+def _discover_from_known_slug(title: str, source_home: str) -> str:
+    slug = _slugify_title(title)
+    if not slug or not source_home:
+        return ""
+
+    host = urlparse(source_home).netloc.lower().removeprefix("www.")
+    candidates: list[str] = []
+    if host == "pbs.org":
+        candidates.append(source_home.rstrip("/") + f"/newshour/world/{slug}")
+
+    for url in candidates:
+        details = fetch_article_details(url, title)
+        if details:
+            return details.get("url") or url
+    return ""
+
+
 @lru_cache(maxsize=256)
 def discover_article_url(title: str, source_home: str) -> str:
     """Find a publisher article URL when Google News only gives a wrapper link."""
@@ -578,6 +777,10 @@ def discover_article_url(title: str, source_home: str) -> str:
     source_host = urlparse(source_home).netloc.lower().removeprefix("www.")
     if not source_host:
         return ""
+
+    slug_url = _discover_from_known_slug(title, source_home)
+    if slug_url:
+        return slug_url
 
     search_title = _clean_title_for_search(title)
     query = f"site:{source_host} {search_title}"
@@ -591,9 +794,8 @@ def discover_article_url(title: str, source_home: str) -> str:
         resp.raise_for_status()
     except Exception as exc:
         logger.warning("Article URL discovery failed (%s): %s", title, exc)
-        return ""
+        return _discover_from_publisher_search(title, source_home)
 
-    title_terms = _keywords(title)
     for match in re.finditer(
         r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
         resp.text,
@@ -606,9 +808,52 @@ def discover_article_url(title: str, source_home: str) -> str:
         parsed = urlparse(href)
         if parsed.path in ("", "/"):
             continue
-        overlap = _keywords(result_text) & title_terms
-        result_terms = _keywords(result_text + " " + href)
-        if len(overlap) >= 2 or len(result_terms & title_terms) >= 3 or search_title.lower() in result_text.lower():
+        if _link_matches_title(href, result_text, title):
+            return href
+    return _discover_from_publisher_search(title, source_home)
+
+
+@lru_cache(maxsize=256)
+def discover_article_url_by_source(title: str, source_label: str) -> str:
+    """Find a publisher article URL when only the display source label is known."""
+    if not title or not source_label:
+        return ""
+
+    guessed_home = _source_home_from_label(source_label)
+    if guessed_home:
+        discovered = discover_article_url(title, guessed_home)
+        if discovered:
+            return discovered
+
+    search_title = _clean_title_for_search(title)
+    query = f"{search_title} {source_label}"
+    try:
+        resp = requests.get(
+            "https://duckduckgo.com/html/",
+            params={"q": query},
+            headers={"User-Agent": BROWSER_USER_AGENT},
+            timeout=TIMEOUT,
+        )
+        resp.raise_for_status()
+    except Exception as exc:
+        logger.warning("Article URL source-label discovery failed (%s): %s", title, exc)
+        return ""
+
+    for match in re.finditer(
+        r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>',
+        resp.text,
+        flags=re.IGNORECASE | re.DOTALL,
+    ):
+        href = _decode_ddg_href(html.unescape(match.group(1)))
+        result_text = _clean_feed_text(match.group(2))
+        if not href.startswith("http") or _is_redirect_url(href):
+            continue
+        if guessed_home and not _same_site(href, guessed_home):
+            continue
+        parsed = urlparse(href)
+        if parsed.path in ("", "/"):
+            continue
+        if _link_matches_title(href, result_text, title):
             return href
     return ""
 

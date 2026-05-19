@@ -50,6 +50,7 @@ class _MetaSummaryParser(HTMLParser):
         self.candidates: list[str] = []
         self.paragraphs: list[str] = []
         self.json_ld_blocks: list[str] = []
+        self.canonical_urls: list[str] = []
         self._capture_paragraph = False
         self._capture_json_ld = False
         self._paragraph_parts: list[str] = []
@@ -62,6 +63,14 @@ class _MetaSummaryParser(HTMLParser):
             key = (attr_map.get("property") or attr_map.get("name") or "").lower()
             if key in {"description", "og:description", "twitter:description"}:
                 self.candidates.append(attr_map.get("content", ""))
+            if key == "og:url" and attr_map.get("content"):
+                self.canonical_urls.append(attr_map["content"])
+        elif tag_name == "link":
+            attr_map = {k.lower(): v or "" for k, v in attrs}
+            rel = (attr_map.get("rel") or "").lower()
+            href = attr_map.get("href") or ""
+            if href and "canonical" in rel:
+                self.canonical_urls.append(href)
         elif tag_name == "p":
             self._capture_paragraph = True
             self._paragraph_parts = []
@@ -224,6 +233,7 @@ def _article_sentence_score(sentence: str, title_keywords: set[str], seen: set[s
     noisy_phrases = (
         "subscribe", "newsletter", "cookie", "advertisement", "sign up",
         "live updates", "seems to be getting", "click here", "read our",
+        "affiliate links", "earn us a commission",
     )
     if any(bad in lower for bad in noisy_phrases) or "…" in sentence:
         return -100
@@ -246,7 +256,7 @@ def _build_detailed_summary(title: str, snippets: list[str]) -> str:
     chosen: list[str] = []
     seen_keywords: set[str] = set()
     for initial_score, sentence in sentences:
-        if len(chosen) >= 5:
+        if len(chosen) >= 7:
             break
         clean = _clean_feed_text(sentence)
         score = _article_sentence_score(clean, title_keywords, seen_keywords)
@@ -262,7 +272,7 @@ def _build_detailed_summary(title: str, snippets: list[str]) -> str:
     if len(chosen) < 3:
         ranked = sorted(sentences, key=lambda item: item[0], reverse=True)
         for _, sentence in ranked:
-            if len(chosen) >= 5:
+            if len(chosen) >= 7:
                 break
             clean = _clean_feed_text(sentence)
             if not clean or clean in chosen or _looks_weak_summary(clean, title):
@@ -277,8 +287,8 @@ def _build_detailed_summary(title: str, snippets: list[str]) -> str:
 
     summary = " ".join(chosen)
     words = summary.split()
-    if len(words) > 180:
-        summary = " ".join(words[:180]).rsplit(" ", 1)[0].rstrip(",;:") + "..."
+    if len(words) > 260:
+        summary = " ".join(words[:260]).rsplit(" ", 1)[0].rstrip(",;:") + "..."
     return summary
 
 
@@ -303,6 +313,7 @@ def _best_article_summary(title: str, snippets: list[str]) -> str:
         noisy_phrases = (
             "subscribe", "newsletter", "cookie", "advertisement", "sign up",
             "live updates", "click here", "read our", "all rights reserved",
+            "affiliate links", "earn us a commission",
         )
         if len(words) < 10 or len(words) > 65:
             return False
@@ -311,7 +322,7 @@ def _best_article_summary(title: str, snippets: list[str]) -> str:
         return not any(clean.lower() in existing.lower() or existing.lower() in clean.lower() for existing in chosen)
 
     for sentence in sentences:
-        if len(chosen) >= 5:
+        if len(chosen) >= 7:
             break
         clean = _clean_feed_text(sentence)
         if not usable(clean):
@@ -323,14 +334,48 @@ def _best_article_summary(title: str, snippets: list[str]) -> str:
 
     summary = " ".join(chosen)
     words = summary.split()
-    if len(words) > 180:
-        summary = " ".join(words[:180]).rsplit(" ", 1)[0].rstrip(",;:") + "..."
+    if len(words) > 260:
+        summary = " ".join(words[:260]).rsplit(" ", 1)[0].rstrip(",;:") + "..."
     return summary
+
+
+def _prefer_fuller_summary(ranked_summary: str, article_summary: str) -> str:
+    if not ranked_summary:
+        return article_summary
+    if not article_summary:
+        return ranked_summary
+    ranked_words = len(ranked_summary.split())
+    article_words = len(article_summary.split())
+    if article_words >= 100 and article_words >= int(ranked_words * 0.65):
+        return article_summary
+    if ranked_words < 100 and article_words > ranked_words + 20:
+        return article_summary
+    return ranked_summary
+
+
+def _resolve_redirect_url(url: str) -> str:
+    if not url:
+        return ""
+    try:
+        resp = requests.get(
+            url,
+            headers={
+                "User-Agent": BROWSER_USER_AGENT,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            },
+            timeout=TIMEOUT,
+            allow_redirects=True,
+        )
+        resp.raise_for_status()
+    except Exception as exc:
+        logger.warning("Redirect URL resolution failed (%s): %s", url, exc)
+        return ""
+    return resp.url if resp.url and not _is_redirect_url(resp.url) else ""
 
 
 def fetch_article_details(url: str, title: str = "") -> dict:
     """Fetch article metadata and paragraph text for richer reporting."""
-    if not url or _is_redirect_url(url):
+    if not url:
         return {}
     try:
         resp = requests.get(
@@ -359,14 +404,21 @@ def fetch_article_details(url: str, title: str = "") -> dict:
             jsonld_summaries.append(text)
     candidates = [_clean_feed_text(c) for c in parser.candidates]
     meta_summaries = [c for c in candidates if c and not _looks_weak_summary(c, title)]
-    paragraphs = [p for p in parser.paragraphs if p and not _looks_weak_summary(p, title)]
-    detail_snippets = [*jsonld_summaries, *meta_summaries, *paragraphs[:16]]
+    paragraphs = [p for p in parser.paragraphs if p]
+    article_texts = [*jsonld_summaries, *paragraphs[:30]]
+    detail_snippets = [*article_texts, *meta_summaries]
     detailed_summary = _build_detailed_summary(title, detail_snippets)
+    article_summary = _best_article_summary(title, detail_snippets)
+    canonical_url = next(
+        (u for u in parser.canonical_urls if u and not _is_redirect_url(u)),
+        "",
+    )
     return {
-        "url": resp.url,
+        "url": canonical_url or resp.url,
         "meta_summary": max(meta_summaries, key=len) if meta_summaries else "",
-        "detailed_summary": detailed_summary or _best_article_summary(title, detail_snippets),
-        "paragraphs": paragraphs[:8],
+        "detailed_summary": _prefer_fuller_summary(detailed_summary, article_summary),
+        "article_text": "\n".join(article_texts),
+        "paragraphs": paragraphs[:30],
     }
 
 
@@ -376,10 +428,19 @@ def fetch_article_summary(url: str, title: str = "") -> str:
     return details.get("detailed_summary") or details.get("meta_summary") or ""
 
 
-def _read_more_links(story: dict, limit: int = 2) -> list[dict[str, str]]:
-    urls = [story.get("url") or "", *(story.get("all_urls") or [])]
-    sources = story.get("sources") or []
-    source_homes = story.get("source_homes") or []
+def _resolve_article_link(title: str, url: str, source_home: str) -> str:
+    if not _is_redirect_url(url):
+        return url
+    discovered = discover_article_url(title, source_home)
+    if discovered:
+        return discovered
+    return _resolve_redirect_url(url) or url
+
+
+def _read_more_links(story: dict, limit: int = 3) -> list[dict[str, str]]:
+    urls = story.get("all_urls") or [story.get("url") or ""]
+    sources = story.get("all_sources") or story.get("sources") or []
+    source_homes = story.get("all_source_homes") or story.get("source_homes") or []
     links: list[dict[str, str]] = []
     seen: set[str] = set()
     for idx, url in enumerate(urls):
@@ -388,9 +449,9 @@ def _read_more_links(story: dict, limit: int = 2) -> list[dict[str, str]]:
         seen.add(url)
         source = sources[idx] if idx < len(sources) else urlparse(url).netloc or "Article"
         source_home = source_homes[idx] if idx < len(source_homes) else (source_homes[0] if source_homes else "")
-        article_url = discover_article_url(story.get("title") or "", source_home) if _is_redirect_url(url) else ""
+        article_url = _resolve_article_link(story.get("title") or "", url, source_home)
         links.append({
-            "url": article_url or url,
+            "url": article_url,
             "source": source,
             "original_url": url,
             "source_home": source_home,
@@ -404,7 +465,8 @@ def enrich_story_summaries(stories: list[dict]) -> None:
     """Improve selected stories with richer summaries and read-further links."""
     for story in stories:
         title = story.get("title") or ""
-        story["read_more_links"] = _read_more_links(story, limit=2)
+        story["read_more_links"] = _read_more_links(story, limit=3)
+        article_texts: list[str] = []
         detail_texts: list[str] = []
 
         for link in story["read_more_links"]:
@@ -414,6 +476,9 @@ def enrich_story_summaries(stories: list[dict]) -> None:
             final_url = details.get("url") or link["url"]
             if final_url:
                 link["url"] = final_url
+            article_text = details.get("article_text") or ""
+            if article_text:
+                article_texts.append(article_text)
             for key in ("detailed_summary", "meta_summary"):
                 value = details.get(key) or ""
                 if value:
@@ -424,8 +489,11 @@ def enrich_story_summaries(stories: list[dict]) -> None:
             if text and text not in summaries:
                 summaries.append(text)
 
-        summary_pool = detail_texts if story["read_more_links"] else [*detail_texts, *summaries]
-        detailed = _build_detailed_summary(title, summary_pool) or _best_article_summary(title, summary_pool)
+        summary_pool = [*article_texts, *detail_texts] if story["read_more_links"] else [*article_texts, *detail_texts, *summaries]
+        detailed = _prefer_fuller_summary(
+            _build_detailed_summary(title, summary_pool),
+            _best_article_summary(title, summary_pool),
+        )
 
         if detailed:
             story["detailed_summary"] = detailed

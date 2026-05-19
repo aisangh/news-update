@@ -1,7 +1,9 @@
 import unittest
+from unittest.mock import patch
 
 from ai_news_finder.collectors import rss
 from ai_news_finder.generators.report import _newsletter_brief, _story_summary
+from ai_news_finder.processors.dedup import group_stories
 
 
 class ArticleSummaryFallbackTests(unittest.TestCase):
@@ -76,6 +78,70 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
 
         self.assertNotIn("open the article link", brief["takeaway"])
         self.assertNotIn("watchlist item", brief["takeaway"])
+
+    def test_read_more_links_resolve_google_news_with_matching_source_home(self) -> None:
+        story = group_stories([
+            {
+                "title": "OpenAI whistleblower ditches Nvidia - TheStreet",
+                "url": "https://news.google.com/rss/articles/story-one?oc=5",
+                "source": "TheStreet",
+                "source_home": "https://www.thestreet.com",
+                "summary": "",
+            },
+            {
+                "title": "OpenAI whistleblower ditches Nvidia - Mashable",
+                "url": "https://news.google.com/rss/articles/story-two?oc=5",
+                "source": "Mashable",
+                "source_home": "https://mashable.com",
+                "summary": "",
+            },
+        ])[0]
+
+        def fake_discover(title: str, source_home: str) -> str:
+            host = source_home.removeprefix("https://www.").removeprefix("https://")
+            return f"https://{host}/resolved-article"
+
+        with patch.object(rss, "discover_article_url", side_effect=fake_discover):
+            links = rss._read_more_links(story, limit=3)
+
+        self.assertEqual(links[0]["url"], "https://thestreet.com/resolved-article")
+        self.assertEqual(links[1]["url"], "https://mashable.com/resolved-article")
+
+    def test_enrichment_uses_raw_article_text_for_longer_summary(self) -> None:
+        story = {
+            "title": "OpenAI whistleblower ditches Nvidia - TheStreet",
+            "url": "https://www.thestreet.com/openai-whistleblower-ditches-nvidia",
+            "all_urls": ["https://www.thestreet.com/openai-whistleblower-ditches-nvidia"],
+            "sources": ["TheStreet"],
+            "all_sources": ["TheStreet"],
+            "all_source_homes": ["https://www.thestreet.com"],
+            "summary": "OpenAI whistleblower ditches Nvidia - TheStreet",
+        }
+        article_text = (
+            "TheStreet reports that an OpenAI whistleblower has shifted attention away "
+            "from Nvidia after reassessing which AI infrastructure companies look most "
+            "exposed to changing demand. The article explains that the investor argument "
+            "centers on whether the market has already priced in Nvidia's dominant role "
+            "in AI accelerators. It then walks through why software, cloud infrastructure, "
+            "and newer chip competitors could benefit if spending patterns broaden beyond "
+            "one supplier. The piece also notes that Nvidia remains central to the current "
+            "AI buildout, but the whistleblower's move is framed as a bet on the next phase "
+            "of the trade rather than a rejection of AI demand. The conclusion focuses on "
+            "what investors should watch next, including earnings guidance, hyperscaler "
+            "capital spending, and signs that AI hardware demand is spreading across more "
+            "vendors."
+        )
+
+        with patch.object(rss, "fetch_article_details", return_value={
+            "url": story["url"],
+            "article_text": article_text,
+            "detailed_summary": "",
+            "meta_summary": "Short meta summary.",
+        }):
+            rss.enrich_story_summaries([story])
+
+        self.assertGreaterEqual(len(story["detailed_summary"].split()), 90)
+        self.assertIn("hyperscaler capital spending", story["detailed_summary"])
 
 
 if __name__ == "__main__":

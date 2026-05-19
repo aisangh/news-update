@@ -39,7 +39,7 @@ def _story_summary(story: dict) -> str:
             title = _clean_summary_text(story.get("title") or "")
             if _looks_like_title_only(clean, title):
                 return "No summary available for this story."
-            return _trim_to_sentences(clean, max_words=165)
+            return _trim_to_sentences(clean, max_words=260)
     return "No summary available for this story."
 
 

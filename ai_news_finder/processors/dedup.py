@@ -1,5 +1,7 @@
 """Deduplication and grouping by title similarity."""
 
+from __future__ import annotations
+
 import re
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
@@ -14,10 +16,12 @@ STOPWORDS = frozenset(
         "has", "are", "was", "were", "into", "about", "after", "before", "over",
         "under", "your", "their", "they", "them", "what", "when", "where", "how",
         "why", "who", "its", "our", "you", "can", "may", "new", "says", "said",
+        "artificial", "intelligence", "ai", "generative", "machine", "learning",
+        "technology", "technologies", "tech", "using", "use", "uses", "used",
     }
 )
 
-SIMILARITY_THRESHOLD = 0.50
+SIMILARITY_THRESHOLD = 0.64
 MIN_SHARED_KEYWORDS = 3
 
 
@@ -31,7 +35,7 @@ def normalize_title(title: str) -> str:
 
 def _strip_outlet_suffix(title: str) -> str:
     """Remove trailing ' - Publisher' common in Google News titles."""
-    return re.sub(r"\s[-–—|]\s+[^-–—|]{2,80}$", "", title).strip() or title
+    return re.sub(r"\s(?:-|\|)\s+[^-|]{2,80}$", "", title).strip() or title
 
 
 def _keywords(title: str) -> set[str]:
@@ -46,9 +50,11 @@ def _title_similarity(a: str, b: str) -> float:
     seq = SequenceMatcher(None, na, nb).ratio()
     ka, kb = _keywords(a), _keywords(b)
     if not ka or not kb:
-        return seq
+        return seq if seq >= 0.85 else 0.0
     overlap = len(ka & kb)
     jaccard = overlap / len(ka | kb)
+    if overlap < 2 and seq < 0.82:
+        return 0.0
     # Boost when several distinctive words match (same event, different headlines)
     if overlap >= MIN_SHARED_KEYWORDS:
         jaccard = min(1.0, jaccard + 0.15 * overlap)
@@ -87,6 +93,12 @@ def _better_summary(current: str, candidate: str) -> str:
     return candidate if len(candidate) > len(current) else current
 
 
+def _append_unique(items: list[str], value: str) -> None:
+    value = (value or "").strip()
+    if value and value not in items:
+        items.append(value)
+
+
 def _pick_canonical_url(urls: list[str]) -> str:
     for url in urls:
         if url and not _is_redirect_url(url):
@@ -123,6 +135,8 @@ def group_stories(stories: list[dict]) -> list[dict]:
                     "sources": [story.get("source") or "Unknown"],
                     "source_count": 1,
                     "summary": story.get("summary") or "",
+                    "all_summaries": [story.get("summary") or ""] if story.get("summary") else [],
+                    "all_titles": [title],
                     "date": story_date,
                     "first_published": story_date,
                     "all_urls": [story.get("url") or ""],
@@ -135,6 +149,8 @@ def group_stories(stories: list[dict]) -> list[dict]:
             url = story.get("url") or ""
             if url and url not in matched["all_urls"]:
                 matched["all_urls"].append(url)
+            _append_unique(matched.setdefault("all_titles", []), title)
+            _append_unique(matched.setdefault("all_summaries", []), story.get("summary") or "")
             matched["summary"] = _better_summary(
                 matched.get("summary") or "",
                 story.get("summary") or "",

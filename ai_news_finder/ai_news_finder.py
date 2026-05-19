@@ -12,6 +12,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from collectors import collect_reddit, collect_rss
+from collectors.rss import enrich_story_summaries
 from discord_notifier import send_error_notification, send_report_file, send_report_summary, send_success_notification
 from generators import generate_html_report, generate_reel_content, generate_text_report
 from generators.report import export_json, format_date_human, _first_published, _story_summary
@@ -140,6 +141,7 @@ def main() -> int:
         return 1
 
     # Layer 5: reel content
+    enrich_story_summaries(selected)
     for story in selected:
         generate_reel_content(story)
 

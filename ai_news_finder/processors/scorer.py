@@ -1,5 +1,7 @@
 """Selection logic — primary pool, secondary pool, Reddit fallback."""
 
+from __future__ import annotations
+
 TOP_N = 10
 
 

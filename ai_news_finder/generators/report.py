@@ -40,9 +40,24 @@ def _story_summary(story: dict) -> str:
         if clean:
             title = _clean_summary_text(story.get("title") or "")
             if _looks_like_any_title(clean, story):
-                return "No summary available for this story."
+                return _generate_fallback_summary(story)
             return _trim_to_sentences(clean, max_words=260)
-    return "No summary available for this story."
+    return _generate_fallback_summary(story)
+
+
+def _generate_fallback_summary(story: dict) -> str:
+    """Generate a summary from title and sources when article extraction fails."""
+    title = story.get("title") or ""
+    sources = story.get("sources") or []
+    sc = story.get("source_count", 1)
+
+    if sources:
+        source_str = sources[0]
+        if len(sources) > 1:
+            source_str += f" and {len(sources) - 1} other source{'s' if len(sources) > 2 else ''}"
+        return f"Reported by {source_str}: {title}"
+
+    return f"Story: {title}"
 
 
 def _clean_summary_text(raw: str) -> str:
@@ -91,10 +106,14 @@ def _best_summary_candidate(story: dict) -> str:
     candidates = list(story.get("all_summaries") or [])
     if story.get("summary"):
         candidates.append(story["summary"])
-    candidates = [c for c in candidates if c and not _looks_like_any_title(_clean_summary_text(c), story)]
     if not candidates:
         return ""
-    return max(candidates, key=lambda c: _candidate_score(c, title))
+    candidates_filtered = [c for c in candidates if c and not _looks_like_any_title(_clean_summary_text(c), story)]
+    if candidates_filtered:
+        return max(candidates_filtered, key=lambda c: _candidate_score(c, title))
+    if candidates:
+        return max(candidates, key=lambda c: _candidate_score(c, title))
+    return ""
 
 
 def _trim_to_sentences(text: str, *, max_words: int) -> str:

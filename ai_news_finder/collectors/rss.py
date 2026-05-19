@@ -184,7 +184,7 @@ def _looks_weak_summary(summary: str, title: str) -> bool:
     clean_title = _clean_feed_text(title)
     if not clean:
         return True
-    if len(clean.split()) < 18:
+    if len(clean.split()) < 10:
         return True
     clean_l = re.sub(r"\s(?:-|\|)\s+[^-|]{2,80}$", "", clean).lower()
     title_l = re.sub(r"\s(?:-|\|)\s+[^-|]{2,80}$", "", clean_title).lower()

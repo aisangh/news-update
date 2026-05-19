@@ -39,7 +39,7 @@ def _is_duplicate_story(candidate: dict, selected: list[dict]) -> bool:
 
 
 def _append_unique_story(selected: list[dict], candidate: dict) -> bool:
-    if len(selected) >= TOP_N or _is_duplicate_story(candidate, selected):
+    if _is_duplicate_story(candidate, selected):
         return False
     selected.append(dict(candidate))
     return True
@@ -48,9 +48,10 @@ def _append_unique_story(selected: list[dict], candidate: dict) -> bool:
 def select_top_stories(
     groups: list[dict],
     reddit_stories: list[dict] | None = None,
+    limit: int = TOP_N,
 ) -> tuple[list[dict], dict]:
     """
-    Select up to TOP_N stories using 3-step logic.
+    Select up to limit stories using 3-step logic.
     Returns (selected_stories, stats_dict).
     """
     reddit_stories = reddit_stories or []
@@ -60,21 +61,21 @@ def select_top_stories(
     selected: list[dict] = []
     for item in primary:
         _append_unique_story(selected, item)
-        if len(selected) >= TOP_N:
+        if len(selected) >= limit:
             break
 
     secondary_added = 0
-    if len(selected) < TOP_N:
+    if len(selected) < limit:
         secondary = [g for g in groups if g.get("source_count", 0) < 3]
         secondary.sort(key=lambda g: g["source_count"], reverse=True)
         for g in secondary:
             if _append_unique_story(selected, g):
                 secondary_added += 1
-            if len(selected) >= TOP_N:
+            if len(selected) >= limit:
                 break
 
     reddit_added = 0
-    if len(selected) < TOP_N:
+    if len(selected) < limit:
         for post in reddit_stories:
             post_date = post.get("date")
             item = {
@@ -93,14 +94,14 @@ def select_top_stories(
             }
             if _append_unique_story(selected, item):
                 reddit_added += 1
-            if len(selected) >= TOP_N:
+            if len(selected) >= limit:
                 break
 
     for i, item in enumerate(selected):
         item["rank"] = i + 1
 
     stats = {
-        "primary_count": min(len(primary), TOP_N),
+        "primary_count": min(len(primary), limit),
         "secondary_added": secondary_added,
         "reddit_added": reddit_added,
         "total_groups": len(groups),

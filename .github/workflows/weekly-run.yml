@@ -1,9 +1,9 @@
-name: Daily AI News Run
+name: Weekly AI News Run
 
 on:
   schedule:
-    # Runs every day at 9:00 AM IST (3:30 AM UTC)
-    - cron: '30 3 * * *'
+    # Runs every Saturday at 9:00 AM IST (3:30 AM UTC)
+    - cron: '30 3 * * 6'
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
@@ -23,11 +23,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run AI News Finder
+      - name: Run AI News Finder (Weekly)
         id: run-script
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: python run.py --days 1 --limit 6
+        run: python run.py --days 7 --limit 15
 
       - name: Send Discord notification on failure
         if: failure()
@@ -39,8 +39,8 @@ jobs:
             -d '{
               "embeds": [
                 {
-                  "title": "❌ Daily AI News Run Failed",
-                  "description": "An error occurred during the daily AI news collection.",
+                  "title": "❌ Weekly AI News Run Failed",
+                  "description": "An error occurred during the weekly AI news collection.",
                   "color": 15158332,
                   "fields": [
                     {

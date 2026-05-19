@@ -49,6 +49,12 @@ def main() -> int:
         help="How many past days of news to scan",
     )
     parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Number of top stories to select (default: 10)",
+    )
+    parser.add_argument(
         "--output",
         type=str,
         default=None,
@@ -128,7 +134,7 @@ def main() -> int:
             "💡 Tip: add more RSS sources in ai_news_finder/.env for better coverage.",
         )
 
-    selected, stats = select_top_stories(groups, reddit_stories)
+    selected, stats = select_top_stories(groups, reddit_stories, limit=args.limit)
     print(_pad("📊 Final selection:"), f" {len(selected)} stories")
 
     if not selected:

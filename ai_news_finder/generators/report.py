@@ -152,10 +152,7 @@ def _newsletter_brief(story: dict) -> dict[str, str]:
     social = story.get("social_fallback")
 
     if summary == "No summary available for this story.":
-        summary = (
-            f"Headline signal: {title}. The source metadata is limited, so treat this as a watchlist item "
-            "and open the article link for full context before publishing."
-        )
+        summary = f"No detailed article summary could be extracted for: {title}"
 
     if social == "reddit":
         why = "Why it matters: Reddit traction is an early signal that builders and AI-watchers are already debating the practical impact."

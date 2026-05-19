@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import html
+import json
 import re
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -48,8 +49,11 @@ class _MetaSummaryParser(HTMLParser):
         super().__init__()
         self.candidates: list[str] = []
         self.paragraphs: list[str] = []
+        self.json_ld_blocks: list[str] = []
         self._capture_paragraph = False
+        self._capture_json_ld = False
         self._paragraph_parts: list[str] = []
+        self._json_ld_parts: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_name = tag.lower()
@@ -61,19 +65,33 @@ class _MetaSummaryParser(HTMLParser):
         elif tag_name == "p":
             self._capture_paragraph = True
             self._paragraph_parts = []
+        elif tag_name == "script":
+            attr_map = {k.lower(): v or "" for k, v in attrs}
+            script_type = (attr_map.get("type") or "").lower()
+            if "ld+json" in script_type:
+                self._capture_json_ld = True
+                self._json_ld_parts = []
 
     def handle_endtag(self, tag: str) -> None:
-        if tag.lower() != "p" or not self._capture_paragraph:
-            return
-        text = _clean_feed_text(" ".join(self._paragraph_parts))
-        if len(text.split()) >= 12:
-            self.paragraphs.append(text)
-        self._capture_paragraph = False
-        self._paragraph_parts = []
+        tag_name = tag.lower()
+        if tag_name == "p" and self._capture_paragraph:
+            text = _clean_feed_text(" ".join(self._paragraph_parts))
+            if len(text.split()) >= 12:
+                self.paragraphs.append(text)
+            self._capture_paragraph = False
+            self._paragraph_parts = []
+        elif tag_name == "script" and self._capture_json_ld:
+            block = " ".join(self._json_ld_parts).strip()
+            if block:
+                self.json_ld_blocks.append(block)
+            self._capture_json_ld = False
+            self._json_ld_parts = []
 
     def handle_data(self, data: str) -> None:
         if self._capture_paragraph:
             self._paragraph_parts.append(data)
+        elif self._capture_json_ld:
+            self._json_ld_parts.append(data)
 
 
 def _google_news_url(query: str) -> str:
@@ -152,6 +170,37 @@ def _is_redirect_url(url: str) -> bool:
 
 def _sentence_split(text: str) -> list[str]:
     return [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+
+
+def _jsonld_article_texts(blocks: list[str]) -> list[str]:
+    texts: list[str] = []
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            for key in ("articleBody", "description"):
+                text = value.get(key)
+                if isinstance(text, str):
+                    clean = _clean_feed_text(text)
+                    if clean:
+                        texts.append(clean)
+            for child in value.values():
+                if isinstance(child, (dict, list)):
+                    visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    for block in blocks:
+        try:
+            visit(json.loads(block))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+
+    unique: list[str] = []
+    for text in texts:
+        if text not in unique:
+            unique.append(text)
+    return unique
 
 
 def _keywords(text: str) -> set[str]:
@@ -234,12 +283,49 @@ def _build_detailed_summary(title: str, snippets: list[str]) -> str:
 
 
 def _best_article_summary(title: str, snippets: list[str]) -> str:
-    """Choose the best usable article text when sentence extraction is sparse."""
-    candidates = [_clean_feed_text(s) for s in snippets]
-    candidates = [c for c in candidates if c and not _looks_weak_summary(c, title)]
-    if not candidates:
+    """Build a multi-sentence article summary when ranked extraction is sparse."""
+    sentences: list[str] = []
+    for snippet in snippets:
+        clean_snippet = _clean_feed_text(snippet)
+        if not clean_snippet or len(clean_snippet.split()) < 10:
+            continue
+        sentences.extend(_sentence_split(clean_snippet))
+
+    if not sentences:
         return ""
-    return max(candidates, key=lambda c: min(len(c), 600))
+
+    chosen: list[str] = []
+
+    def usable(sentence: str) -> bool:
+        clean = _clean_feed_text(sentence)
+        words = clean.split()
+        lower = clean.lower()
+        noisy_phrases = (
+            "subscribe", "newsletter", "cookie", "advertisement", "sign up",
+            "live updates", "click here", "read our", "all rights reserved",
+        )
+        if len(words) < 10 or len(words) > 65:
+            return False
+        if any(bad in lower for bad in noisy_phrases):
+            return False
+        return not any(clean.lower() in existing.lower() or existing.lower() in clean.lower() for existing in chosen)
+
+    for sentence in sentences:
+        if len(chosen) >= 5:
+            break
+        clean = _clean_feed_text(sentence)
+        if not usable(clean):
+            continue
+        chosen.append(clean)
+
+    if not chosen:
+        return ""
+
+    summary = " ".join(chosen)
+    words = summary.split()
+    if len(words) > 180:
+        summary = " ".join(words[:180]).rsplit(" ", 1)[0].rstrip(",;:") + "..."
+    return summary
 
 
 def fetch_article_details(url: str, title: str = "") -> dict:
@@ -267,10 +353,14 @@ def fetch_article_details(url: str, title: str = "") -> dict:
     except Exception:
         return {}
 
+    jsonld_summaries = []
+    for text in _jsonld_article_texts(parser.json_ld_blocks):
+        if text and not (len(text.split()) < 30 and _looks_weak_summary(text, title)):
+            jsonld_summaries.append(text)
     candidates = [_clean_feed_text(c) for c in parser.candidates]
     meta_summaries = [c for c in candidates if c and not _looks_weak_summary(c, title)]
     paragraphs = [p for p in parser.paragraphs if p and not _looks_weak_summary(p, title)]
-    detail_snippets = [*meta_summaries, *paragraphs[:12]]
+    detail_snippets = [*jsonld_summaries, *meta_summaries, *paragraphs[:16]]
     detailed_summary = _build_detailed_summary(title, detail_snippets)
     return {
         "url": resp.url,
@@ -281,9 +371,9 @@ def fetch_article_details(url: str, title: str = "") -> dict:
 
 
 def fetch_article_summary(url: str, title: str = "") -> str:
-    """Fetch a concise article summary from common HTML metadata."""
+    """Fetch article-derived summary text, preferring richer article content."""
     details = fetch_article_details(url, title)
-    return details.get("meta_summary") or details.get("detailed_summary") or ""
+    return details.get("detailed_summary") or details.get("meta_summary") or ""
 
 
 def _read_more_links(story: dict, limit: int = 2) -> list[dict[str, str]]:

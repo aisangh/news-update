@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 from collectors import collect_reddit, collect_rss
 from collectors.rss import enrich_story_summaries
-from discord_notifier import send_error_notification, send_report_file, send_report_summary, send_success_notification
+from discord_notifier import send_error_notification, send_report_file
 from generators import generate_html_report, generate_reel_content, generate_text_report
 from generators.report import export_json, format_date_human, _first_published, _story_summary
 from processors import filter_ai_stories, group_stories, select_top_stories
@@ -196,26 +196,14 @@ def main() -> int:
 
     print(f"📄 HTML report: reports/{output_path.name}")
     print(f"📄 Text report:  reports/{text_path.name}")
-    
-    # Send Discord notification with report summary
-    send_report_summary(
-        total_stories=len(selected),
-        sources_count=len(sources_used),
-        verified_count=verified_count,
-        report_file=f"reports/{output_path.name}",
-    )
-    
-    # Send the HTML report file to Discord (interactive, mobile-friendly)
+
+    # Send the HTML report file to Discord
     if output_path.exists():
         send_report_file(
             str(output_path.resolve()),
             f"📱 Interactive Report - {today}\n{len(selected)} top AI stories • {len(sources_used)} sources • Click to expand details"
         )
-    else:
-        print(f"⚠️  Warning: HTML report not found at {output_path}")
-    
-    return 0
-    
+
     return 0
 
 

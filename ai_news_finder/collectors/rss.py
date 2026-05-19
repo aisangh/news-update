@@ -53,6 +53,7 @@ class _MetaSummaryParser(HTMLParser):
         self.json_ld_blocks: list[str] = []
         self.canonical_urls: list[str] = []
         self.titles: list[str] = []
+        self.article_headlines: list[str] = []
         self._capture_paragraph = False
         self._capture_json_ld = False
         self._capture_title = False
@@ -77,16 +78,17 @@ class _MetaSummaryParser(HTMLParser):
             href = attr_map.get("href") or ""
             if href and "canonical" in rel:
                 self.canonical_urls.append(href)
-        elif tag_name == "p":
-            self._capture_paragraph = True
-            self._paragraph_parts = []
+        elif tag_name in {"p", "div"}:
+            if tag_name == "p":
+                self._capture_paragraph = True
+                self._paragraph_parts = []
         elif tag_name == "script":
             attr_map = {k.lower(): v or "" for k, v in attrs}
             script_type = (attr_map.get("type") or "").lower()
             if "ld+json" in script_type:
                 self._capture_json_ld = True
                 self._json_ld_parts = []
-        elif tag_name in {"h1", "title"}:
+        elif tag_name in {"h1", "h2", "title"}:
             self._capture_title = True
             self._title_parts = []
 
@@ -94,7 +96,7 @@ class _MetaSummaryParser(HTMLParser):
         tag_name = tag.lower()
         if tag_name == "p" and self._capture_paragraph:
             text = _clean_feed_text(" ".join(self._paragraph_parts))
-            if len(text.split()) >= 12:
+            if len(text.split()) >= 10:
                 self.paragraphs.append(text)
             self._capture_paragraph = False
             self._paragraph_parts = []
@@ -104,10 +106,10 @@ class _MetaSummaryParser(HTMLParser):
                 self.json_ld_blocks.append(block)
             self._capture_json_ld = False
             self._json_ld_parts = []
-        elif tag_name in {"h1", "title"} and self._capture_title:
+        elif tag_name in {"h1", "h2", "title"} and self._capture_title:
             title = _clean_feed_text(" ".join(self._title_parts))
             if title:
-                self.titles.append(title)
+                self.article_headlines.append(title)
             self._capture_title = False
             self._title_parts = []
 
@@ -507,9 +509,9 @@ def fetch_article_details(url: str, title: str = "") -> dict:
     candidates = [_clean_feed_text(c) for c in parser.candidates]
     meta_summaries = [c for c in candidates if c and not _looks_weak_summary(c, title)]
     paragraphs = [p for p in parser.paragraphs if p]
-    article_texts = [*jsonld_summaries, *paragraphs[:30]]
+    article_texts = [*jsonld_summaries, *paragraphs[:40]]
     article_text = "\n".join(article_texts)
-    if not _article_title_matches(title, parser.titles):
+    if not _article_title_matches(title, [*parser.titles, *parser.article_headlines]):
         return {}
     if article_text and not _article_matches_title(title, article_text):
         return {}
@@ -525,7 +527,7 @@ def fetch_article_details(url: str, title: str = "") -> dict:
         "meta_summary": max(meta_summaries, key=len) if meta_summaries else "",
         "detailed_summary": _prefer_fuller_summary(detailed_summary, article_summary),
         "article_text": article_text,
-        "paragraphs": paragraphs[:30],
+        "paragraphs": paragraphs[:40],
     }
 
 
@@ -550,7 +552,7 @@ def _resolve_article_link(title: str, url: str, source_home: str, source: str = 
     return url
 
 
-def _read_more_links(story: dict, limit: int = 3) -> list[dict[str, str]]:
+def _read_more_links(story: dict, limit: int = 10) -> list[dict[str, str]]:
     urls = story.get("all_urls") or [story.get("url") or ""]
     sources = story.get("all_sources") or story.get("sources") or []
     source_homes = story.get("all_source_homes") or story.get("source_homes") or []
@@ -579,11 +581,14 @@ def enrich_story_summaries(stories: list[dict]) -> None:
     for idx, story in enumerate(stories, 1):
         title = story.get("title") or ""
         original_summary = story.get("summary") or ""
-        story["read_more_links"] = _read_more_links(story, limit=5)
+        story["read_more_links"] = _read_more_links(story, limit=10)
         article_texts: list[str] = []
         detail_texts: list[str] = []
+        fetched_count = 0
 
         for link in story["read_more_links"]:
+            if fetched_count >= 3:
+                break
             details = fetch_article_details(link["url"], title)
             if not details and _is_redirect_url(link.get("original_url") or ""):
                 fallback_url = discover_article_url_by_source(title, link.get("source") or "")
@@ -591,8 +596,9 @@ def enrich_story_summaries(stories: list[dict]) -> None:
                     link["url"] = fallback_url
                     details = fetch_article_details(fallback_url, title)
             if not details:
-                logger.debug(f"Story #{idx}: Failed to fetch details from {link['url']}")
+                logger.debug(f"Story #{idx}: Failed to fetch from {link.get('source', 'Unknown')}")
                 continue
+            fetched_count += 1
             final_url = details.get("url") or link["url"]
             if final_url:
                 link["url"] = final_url
@@ -609,7 +615,7 @@ def enrich_story_summaries(stories: list[dict]) -> None:
             if text and text not in summaries:
                 summaries.append(text)
 
-        summary_pool = [*article_texts, *detail_texts] if story["read_more_links"] else [*article_texts, *detail_texts, *summaries]
+        summary_pool = [*article_texts, *detail_texts] if article_texts or detail_texts else [*summaries]
         detailed = _prefer_fuller_summary(
             _build_detailed_summary(title, summary_pool),
             _best_article_summary(title, summary_pool),
@@ -618,6 +624,9 @@ def enrich_story_summaries(stories: list[dict]) -> None:
         if detailed and _is_detailed_article_summary(detailed):
             story["detailed_summary"] = detailed
             story["summary"] = detailed
+        elif original_summary and len(original_summary.split()) >= 20:
+            story["summary"] = original_summary
+            story["detailed_summary"] = original_summary
         elif _looks_weak_summary(story.get("summary") or "", title):
             fetched = fetch_article_summary(story.get("url") or "", title)
             if fetched and _is_detailed_article_summary(fetched):
@@ -625,10 +634,6 @@ def enrich_story_summaries(stories: list[dict]) -> None:
                 story["detailed_summary"] = fetched
                 if fetched not in summaries:
                     summaries.append(fetched)
-            elif original_summary and len(original_summary.split()) >= 30:
-                story["summary"] = original_summary
-            else:
-                logger.debug(f"Story #{idx} ({title[:50]}...): No detailed summary found")
 
 
 def _entry_summary(entry: Any) -> str:

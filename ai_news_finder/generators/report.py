@@ -258,7 +258,6 @@ def generate_html_report(
       </div>
       <h2><a href="{url}" target="_blank" rel="noopener">{title}</a></h2>
       <p class="takeaway">{takeaway}</p>
-      <p class="why">{why}</p>
       {read_more_html}
 
       {f'<p class="creator-hook"><span>Reel angle</span>{hook}</p>' if hook else ''}
@@ -474,17 +473,6 @@ def generate_html_report(
       color: #2b2925;
     }}
 
-    .why {{
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      color: var(--accent-dark);
-      background: #eef8f6;
-      border-left: 3px solid var(--accent);
-      padding: 12px 14px;
-      border-radius: 0 6px 6px 0;
-      margin-bottom: 14px;
-      font-size: 0.95rem;
-    }}
-
     .read-more {{
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       border: 1px solid var(--rule);
@@ -627,8 +615,7 @@ def generate_html_report(
       </div>
       <aside class="editor-note">
         <div class="section-label">Editor's read</div>
-        <p>{_esc(lead_brief["why"])}</p>
-        <p style="margin-top: 12px;"><strong>Source mix:</strong> {_esc(sources_str)}</p>
+        <p><strong>Source mix:</strong> {_esc(sources_str)}</p>
       </aside>
     </section>
 
@@ -705,14 +692,6 @@ def generate_text_report(
         ])
 
         for line in textwrap.fill(brief["takeaway"], width=72).split("\n"):
-            lines.append(f"  {line}")
-
-        lines.extend([
-            "",
-            "Why it matters:",
-        ])
-        why_text = brief["why"].removeprefix("Why it matters:").strip()
-        for line in textwrap.fill(why_text, width=72).split("\n"):
             lines.append(f"  {line}")
 
         lines.extend([

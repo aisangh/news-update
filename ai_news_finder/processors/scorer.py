@@ -2,7 +2,47 @@
 
 from __future__ import annotations
 
+from .dedup import _title_similarity
+
 TOP_N = 10
+DUPLICATE_THRESHOLD = 0.64
+
+
+def _story_titles(story: dict) -> list[str]:
+    titles = [story.get("title") or "", *(story.get("all_titles") or [])]
+    return [t for t in titles if t]
+
+
+def _story_texts(story: dict) -> list[str]:
+    texts = _story_titles(story)
+    for key in ("summary", "detailed_summary"):
+        if story.get(key):
+            texts.append(story[key])
+    texts.extend(story.get("all_summaries") or [])
+    return [t[:500] for t in texts if t]
+
+
+def _story_urls(story: dict) -> set[str]:
+    return {u for u in [story.get("url") or "", *(story.get("all_urls") or [])] if u}
+
+
+def _is_duplicate_story(candidate: dict, selected: list[dict]) -> bool:
+    candidate_urls = _story_urls(candidate)
+    for existing in selected:
+        if candidate_urls & _story_urls(existing):
+            return True
+        for cand_text in _story_texts(candidate):
+            for existing_text in _story_texts(existing):
+                if _title_similarity(cand_text, existing_text) >= DUPLICATE_THRESHOLD:
+                    return True
+    return False
+
+
+def _append_unique_story(selected: list[dict], candidate: dict) -> bool:
+    if len(selected) >= TOP_N or _is_duplicate_story(candidate, selected):
+        return False
+    selected.append(dict(candidate))
+    return True
 
 
 def select_top_stories(
@@ -17,36 +57,44 @@ def select_top_stories(
 
     primary = [g for g in groups if g.get("source_count", 0) >= 3]
     primary.sort(key=lambda g: g["source_count"], reverse=True)
-    selected = primary[:TOP_N]
+    selected: list[dict] = []
+    for item in primary:
+        _append_unique_story(selected, item)
+        if len(selected) >= TOP_N:
+            break
 
     secondary_added = 0
     if len(selected) < TOP_N:
-        needed = TOP_N - len(selected)
         secondary = [g for g in groups if g.get("source_count", 0) < 3]
         secondary.sort(key=lambda g: g["source_count"], reverse=True)
-        for g in secondary[:needed]:
-            selected.append(dict(g))
-            secondary_added += 1
+        for g in secondary:
+            if _append_unique_story(selected, g):
+                secondary_added += 1
+            if len(selected) >= TOP_N:
+                break
 
     reddit_added = 0
     if len(selected) < TOP_N:
-        needed = TOP_N - len(selected)
-        for post in reddit_stories[:needed]:
+        for post in reddit_stories:
             post_date = post.get("date")
-            selected.append(
-                {
-                    "title": post.get("title") or "",
-                    "url": post.get("url") or "",
-                    "sources": [post.get("source") or "Reddit"],
-                    "source_count": 1,
-                    "summary": post.get("summary") or "",
-                    "date": post_date,
-                    "first_published": post_date,
-                    "all_urls": [post.get("url") or ""],
-                    "social_fallback": "reddit",
-                }
-            )
-            reddit_added += 1
+            item = {
+                "title": post.get("title") or "",
+                "url": post.get("url") or "",
+                "sources": [post.get("source") or "Reddit"],
+                "source_count": 1,
+                "summary": post.get("summary") or "",
+                "date": post_date,
+                "first_published": post_date,
+                "all_urls": [post.get("url") or ""],
+                "source_homes": [post.get("source_home") or ""],
+                "all_titles": [post.get("title") or ""],
+                "all_summaries": [post.get("summary") or ""] if post.get("summary") else [],
+                "social_fallback": "reddit",
+            }
+            if _append_unique_story(selected, item):
+                reddit_added += 1
+            if len(selected) >= TOP_N:
+                break
 
     for i, item in enumerate(selected):
         item["rank"] = i + 1

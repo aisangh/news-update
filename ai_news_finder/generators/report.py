@@ -32,14 +32,17 @@ def format_date_human(raw: str | None) -> str:
 
 
 def _story_summary(story: dict) -> str:
-    raw = _best_summary_candidate(story)
+    if _read_more_links(story):
+        raw = story.get("detailed_summary") or ""
+    else:
+        raw = story.get("detailed_summary") or _best_summary_candidate(story)
     if raw:
         clean = _clean_summary_text(raw)
         if clean:
             title = _clean_summary_text(story.get("title") or "")
             if _looks_like_title_only(clean, title):
                 return "No summary available for this story."
-            return _trim_to_sentences(clean, max_words=58)
+            return _trim_to_sentences(clean, max_words=165)
     return "No summary available for this story."
 
 
@@ -120,6 +123,30 @@ def _domain(url: str) -> str:
     return host.removeprefix("www.") if host else "original source"
 
 
+def _read_more_links(story: dict, *, limit: int = 2) -> list[dict[str, str]]:
+    links: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in story.get("read_more_links") or []:
+        url = item.get("url") or ""
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        links.append({"url": url, "source": item.get("source") or _domain(url)})
+        if len(links) >= limit:
+            return links
+
+    sources = story.get("sources") or []
+    urls = [story.get("url") or "", *(story.get("all_urls") or [])]
+    for idx, url in enumerate(urls):
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        links.append({"url": url, "source": sources[idx] if idx < len(sources) else _domain(url)})
+        if len(links) >= limit:
+            break
+    return links
+
+
 def _newsletter_brief(story: dict) -> dict[str, str]:
     title = story.get("title") or "AI news story"
     summary = _story_summary(story)
@@ -151,6 +178,17 @@ def _newsletter_brief(story: dict) -> dict[str, str]:
         "why": why,
         "source_line": source_line,
     }
+
+
+def _format_html_read_more(story: dict) -> str:
+    links = _read_more_links(story)
+    if not links:
+        return ""
+    items = "".join(
+        f'<li><a href="{_esc(link["url"])}" target="_blank" rel="noopener">{_esc(link["source"])}</a></li>'
+        for link in links
+    )
+    return f'<div class="read-more"><strong>Read further:</strong><ol>{items}</ol></div>'
 
 
 def _first_published(story: dict) -> str | None:
@@ -207,6 +245,7 @@ def generate_html_report(
         title = _esc(story.get("title") or "")
         url = _esc(story.get("url") or "#")
         sources = story.get("sources") or []
+        read_more_html = _format_html_read_more(story)
 
         cards_html.append(
             f"""
@@ -219,6 +258,7 @@ def generate_html_report(
       <h2><a href="{url}" target="_blank" rel="noopener">{title}</a></h2>
       <p class="takeaway">{takeaway}</p>
       <p class="why">{why}</p>
+      {read_more_html}
 
       {f'<p class="creator-hook"><span>Reel angle</span>{hook}</p>' if hook else ''}
 
@@ -227,7 +267,6 @@ def generate_html_report(
         <div class="metadata">
           <p><strong>First published:</strong> {first_pub_display}</p>
           <p><strong>Coverage:</strong> {source_line}</p>
-          <p><strong>Article:</strong> <a href="{url}" target="_blank" rel="noopener">{_esc(_domain(url))}</a></p>
           <div class="chips">
             {''.join(f'<span class="chip">{_esc(s)}</span>' for s in sources)}
           </div>
@@ -243,7 +282,7 @@ def generate_html_report(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The AI Brief — {generated_at}</title>
+  <title>The AI Sangh Brief — {generated_at}</title>
   <style>
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
 
@@ -445,6 +484,26 @@ def generate_html_report(
       font-size: 0.95rem;
     }}
 
+    .read-more {{
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      border: 1px solid var(--rule);
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      color: #34322e;
+      font-size: 0.94rem;
+    }}
+
+    .read-more ol {{
+      margin: 8px 0 0 20px;
+    }}
+
+    .read-more li {{
+      padding-left: 4px;
+      margin-top: 4px;
+      word-break: break-word;
+    }}
+
     .creator-hook {{
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       color: #4a3415;
@@ -545,12 +604,12 @@ def generate_html_report(
     <header>
       <div class="masthead">
         <div>
-          <div class="brand">AI News Finder</div>
-          <h1>The AI Brief</h1>
+          <div class="brand">AI Sangh</div>
+          <h1>The AI Sangh Brief</h1>
         </div>
         <div class="dateline">{generated_date}<br>{generated_at}</div>
       </div>
-      <p class="dek">A curated newsletter-style digest of the {n} most relevant AI stories from the last {days} day{'s' if days != 1 else ''}, cleaned up for fast reading and creator planning.</p>
+      <p class="dek">A curated newsletter-style digest of the {n} most relevant AI stories from the last {days} day{'s' if days != 1 else ''}, with summaries built from the read-further articles whenever article links are available.</p>
       <div class="stats-bar">
         <div class="stat"><span class="stat-value">{total_scanned}</span><span class="stat-label">Stories scanned</span></div>
         <div class="stat"><span class="stat-value">{n}</span><span class="stat-label">Stories selected</span></div>
@@ -577,7 +636,7 @@ def generate_html_report(
     </main>
 
     <footer>
-      <p>Generated by AI News Finder. Open the article links for full reporting and source verification.</p>
+      <p>Generated by AI Sangh. Open the article links for full reporting and source verification.</p>
       <p><a href="https://github.com/aisangh/news-update" target="_blank" rel="noopener">View project on GitHub</a></p>
     </footer>
   </div>
@@ -606,8 +665,8 @@ def generate_text_report(
         sources_str += f" + {len(sources_used) - 8} more"
 
     lines = [
-        "THE AI BRIEF",
-        "A curated newsletter digest from AI News Finder",
+        "THE AI SANGH BRIEF",
+        "A curated newsletter digest from AI Sangh",
         "",
         f"{generated_date} | {generated_at}",
         f"Coverage window: last {days} day{'s' if days != 1 else ''}",
@@ -658,8 +717,14 @@ def generate_text_report(
         lines.extend([
             "",
             f"Sources: {brief['source_line']}",
-            f"Read more: {url}",
+            "Read further:",
         ])
+        links = _read_more_links(story)
+        if links:
+            for link_idx, link in enumerate(links, 1):
+                lines.append(f"  {link_idx}. {link['source']}: {link['url']}")
+        else:
+            lines.append(f"  1. {_domain(url)}: {url}")
 
         if hook:
             lines.append("Creator angle:")
@@ -673,7 +738,7 @@ def generate_text_report(
         ])
 
     lines.extend([
-        "Generated by AI News Finder",
+        "Generated by AI Sangh",
         "https://github.com/aisangh/news-update",
         "",
     ])

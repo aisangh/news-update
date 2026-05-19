@@ -137,6 +137,7 @@ def group_stories(stories: list[dict]) -> list[dict]:
                     "summary": story.get("summary") or "",
                     "all_summaries": [story.get("summary") or ""] if story.get("summary") else [],
                     "all_titles": [title],
+                    "source_homes": [story.get("source_home") or ""],
                     "date": story_date,
                     "first_published": story_date,
                     "all_urls": [story.get("url") or ""],
@@ -149,6 +150,7 @@ def group_stories(stories: list[dict]) -> list[dict]:
             url = story.get("url") or ""
             if url and url not in matched["all_urls"]:
                 matched["all_urls"].append(url)
+            _append_unique(matched.setdefault("source_homes", []), story.get("source_home") or "")
             _append_unique(matched.setdefault("all_titles", []), title)
             _append_unique(matched.setdefault("all_summaries", []), story.get("summary") or "")
             matched["summary"] = _better_summary(

@@ -29,6 +29,9 @@ working storage:
 %cd news-update
 !pip install -r requirements.txt
 !pip install sentence-transformers
+!pip install transformers accelerate sentencepiece
+%env AI_NEWS_USE_SUMMARY_MODEL=1
+%env AI_NEWS_SUMMARY_MODEL=Qwen/Qwen2.5-1.5B-Instruct
 !python kaggle/launch.py --days 2
 ```
 
@@ -59,6 +62,11 @@ If `sentence-transformers` is installed, the notebook will use a stronger
 Hugging Face embedding model, `sentence-transformers/all-mpnet-base-v2`, to
 rerank the shortlist and label the stories. The terminal output also prints
 more stage-by-stage progress so you can see the pipeline moving.
+
+If `transformers` is installed and `AI_NEWS_USE_SUMMARY_MODEL=1`, the notebook
+will also use a local Qwen-style summarizer to rewrite the extracted article
+text into cleaner newsletter copy. This is the fastest way to get the issue
+closer to a polished 10/10 on Kaggle.
 
 ## Layout
 

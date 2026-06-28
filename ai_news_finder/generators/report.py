@@ -39,7 +39,10 @@ def _story_summary(story: dict) -> str:
         clean = _clean_summary_text(raw)
         if clean:
             title = _clean_summary_text(story.get("title") or "")
+            clean = _dedupe_summary_sentences(clean)
             if _looks_like_any_title(clean, story):
+                return _generate_fallback_summary(story)
+            if len(clean.split()) < 20 and _looks_like_title_only(clean, title):
                 return _generate_fallback_summary(story)
             return _trim_to_sentences(clean, max_words=260)
     return _generate_fallback_summary(story)
@@ -47,9 +50,9 @@ def _story_summary(story: dict) -> str:
 
 def _generate_fallback_summary(story: dict) -> str:
     """Generate a readable fallback summary when article extraction fails."""
-    title = _clean_summary_text(story.get("title") or "")
+    title = _headline_focus(story.get("title") or "")
     topic = (story.get("ai_topic") or "").strip().lower()
-    sources = story.get("sources") or []
+    sources = _story_sources(story)
     source_count = int(story.get("source_count", len(sources)) or len(sources) or 0)
     source_line = ", ".join(sources[:3]) if sources else _domain(story.get("url") or "")
     if len(sources) > 3:
@@ -63,9 +66,10 @@ def _generate_fallback_summary(story: dict) -> str:
             confidence = "It has enough cross-coverage to deserve a close look."
         else:
             confidence = "It is worth watching because it may be an early signal before wider coverage appears."
-        return f"{topic_prefix}{title}. {confidence} Current coverage includes {source_line}."
+        angle = f"this {topic or 'AI'} story centers on {title}" if topic else f"the story centers on {title}"
+        return f"{topic_prefix}Bottom line: {angle}. {confidence} Current coverage includes {source_line}."
 
-    return "No readable article summary was available, but the source list and headline still indicate a relevant AI story."
+    return "Bottom line: the available source list points to a relevant AI story, even though the article text could not be read cleanly."
 
 
 def _clean_summary_text(raw: str) -> str:
@@ -75,7 +79,43 @@ def _clean_summary_text(raw: str) -> str:
     clean = re.sub(r"\bRead more\b.*$", "", clean, flags=re.IGNORECASE).strip()
     clean = re.sub(r"\bThe post .+? appeared first on .+?\.$", "", clean, flags=re.IGNORECASE).strip()
     clean = re.sub(r"\s+([,.;:!?])", r"\1", clean)
+    typo_map = {
+        r"\bMaraget\b": "Margaret",
+        r"\bBabell\b": "Babel",
+        r"\bIt(?:['’])s order\b": "Its order",
+    }
+    for pattern, replacement in typo_map.items():
+        clean = re.sub(pattern, replacement, clean, flags=re.IGNORECASE)
     return clean
+
+
+def _headline_focus(title: str) -> str:
+    clean = _clean_summary_text(title)
+    clean = re.sub(r"^(Research|Policy|Business|Hardware|Culture|Consumer|Product|General):\s*", "", clean, flags=re.IGNORECASE)
+    clean = re.sub(r"\s[-|]\s+[^-|]{2,80}$", "", clean).strip()
+    return clean
+
+
+def _dedupe_summary_sentences(text: str) -> str:
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    seen: set[str] = set()
+    unique: list[str] = []
+    for sentence in sentences:
+        clean = _clean_summary_text(sentence)
+        if not clean:
+            continue
+        normalized = re.sub(r"\s+", " ", clean).strip().lower()
+        if normalized in seen:
+            continue
+        if any(
+            normalized in prev or prev in normalized
+            for prev in seen
+            if len(normalized) > 24 and len(prev) > 24
+        ):
+            continue
+        seen.add(normalized)
+        unique.append(clean)
+    return " ".join(unique) if unique else text
 
 
 def _candidate_score(summary: str, title: str) -> int:
@@ -181,7 +221,7 @@ def _read_more_links(story: dict, *, limit: int = 2) -> list[dict[str, str]]:
 def _newsletter_brief(story: dict) -> dict[str, str]:
     title = story.get("title") or "AI news story"
     summary = _story_summary(story)
-    sources = story.get("sources") or []
+    sources = _story_sources(story)
     sc = story.get("source_count", len(sources) or 1)
     social = story.get("social_fallback")
 
@@ -217,6 +257,16 @@ def _format_html_read_more(story: dict) -> str:
         for link in links
     )
     return f'<div class="read-more"><strong>Read further:</strong><ol>{items}</ol></div>'
+
+
+def _story_sources(story: dict) -> list[str]:
+    sources = [s for s in (story.get("sources") or []) if s]
+    if sources:
+        return sources
+    link_sources = [item.get("source") for item in story.get("read_more_links") or [] if item.get("source")]
+    if link_sources:
+        return link_sources
+    return []
 
 
 def _first_published(story: dict) -> str | None:

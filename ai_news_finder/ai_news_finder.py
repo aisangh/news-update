@@ -17,6 +17,7 @@ from collectors.rss import enrich_story_summaries
 from discord_notifier import send_error_notification, send_report_file
 from generators import generate_html_report, generate_reel_content, generate_text_report
 from generators.report import export_json, format_date_human, _first_published, _story_summary
+from llm_summary import should_use_summary_model, summary_model_name
 from processors import filter_ai_stories, group_stories, select_top_stories
 
 _pkg_dir = Path(__file__).resolve().parent
@@ -152,6 +153,11 @@ def main() -> int:
     hf_model = os.getenv("AI_NEWS_HF_MODEL", "sentence-transformers/all-mpnet-base-v2")
     hf_enabled = os.getenv("AI_NEWS_USE_HF", "auto")
     print(f"🧠 AI ranking model: {hf_model} (AI_NEWS_USE_HF={hf_enabled})")
+    summary_enabled = os.getenv("AI_NEWS_USE_SUMMARY_MODEL", "auto")
+    print(
+        f"📝 Summary model: {summary_model_name()} "
+        f"(AI_NEWS_USE_SUMMARY_MODEL={summary_enabled}, active={should_use_summary_model()})"
+    )
 
     # Layer 1: collection
     _stage("📡 Collecting RSS feeds...")

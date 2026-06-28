@@ -416,6 +416,30 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
         self.assertNotIn("contact or verify outreach", cleaned)
         self.assertNotIn("StrictlyVC", cleaned)
 
+    def test_clean_feed_text_corrects_common_typos(self) -> None:
+        text = "Maraget Atwood spoke at Babell and said It’s order that matters."
+
+        cleaned = rss._clean_feed_text(text)
+
+        self.assertIn("Margaret Atwood", cleaned)
+        self.assertIn("Babel", cleaned)
+        self.assertIn("Its order", cleaned)
+        self.assertNotIn("Maraget", cleaned)
+
+    def test_story_summary_dedupes_repeated_sentences(self) -> None:
+        story = {
+            "title": "Anthropic model cleared for wider use - Fortune",
+            "detailed_summary": (
+                "Anthropic received clearance for wider use. Anthropic received clearance for wider use. "
+                "The move matters because it changes who can access the model."
+            ),
+        }
+
+        summary = _story_summary(story)
+
+        self.assertEqual(summary.count("Anthropic received clearance for wider use."), 1)
+        self.assertIn("The move matters because it changes who can access the model.", summary)
+
 
 if __name__ == "__main__":
     unittest.main()

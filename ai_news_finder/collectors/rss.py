@@ -17,6 +17,15 @@ import feedparser
 import requests
 from dateutil import parser as date_parser
 
+try:
+    from ai_news_finder.llm_summary import get_llm_summarizer, should_use_summary_model
+except Exception:
+    try:
+        from llm_summary import get_llm_summarizer, should_use_summary_model
+    except Exception:  # pragma: no cover - optional dependency fallback
+        get_llm_summarizer = lambda: None  # type: ignore[assignment]
+        should_use_summary_model = lambda: False  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 
 USER_AGENT = "AINewsFinder/1.0 (educational project)"
@@ -203,7 +212,36 @@ def _clean_feed_text(raw: str) -> str:
     ]
     for pattern in boilerplate_patterns:
         text = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
+    typo_map = {
+        r"\bMaraget\b": "Margaret",
+        r"\bBabell\b": "Babel",
+        r"\bIt(?:['’])s order\b": "Its order",
+    }
+    for pattern, replacement in typo_map.items():
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     return text
+
+
+def _dedupe_summary_sentences(text: str) -> str:
+    sentences = _sentence_split(text)
+    seen: set[str] = set()
+    unique: list[str] = []
+    for sentence in sentences:
+        clean = _clean_feed_text(sentence)
+        if not clean:
+            continue
+        normalized = re.sub(r"\s+", " ", clean).strip().lower()
+        if normalized in seen:
+            continue
+        if any(
+            normalized in prev or prev in normalized
+            for prev in seen
+            if len(normalized) > 24 and len(prev) > 24
+        ):
+            continue
+        seen.add(normalized)
+        unique.append(clean)
+    return " ".join(unique) if unique else _clean_feed_text(text)
 
 
 def _looks_weak_summary(summary: str, title: str) -> bool:
@@ -352,7 +390,7 @@ def _build_detailed_summary(title: str, snippets: list[str]) -> str:
     if not chosen:
         return ""
 
-    summary = " ".join(chosen)
+    summary = _dedupe_summary_sentences(" ".join(chosen))
     words = summary.split()
     if len(words) > 260:
         summary = " ".join(words[:260]).rsplit(" ", 1)[0].rstrip(",;:") + "..."
@@ -403,7 +441,7 @@ def _best_article_summary(title: str, snippets: list[str]) -> str:
     if not chosen:
         return ""
 
-    summary = " ".join(chosen)
+    summary = _dedupe_summary_sentences(" ".join(chosen))
     words = summary.split()
     if len(words) > 260:
         summary = " ".join(words[:260]).rsplit(" ", 1)[0].rstrip(",;:") + "..."
@@ -553,6 +591,9 @@ def fetch_article_details(url: str, title: str = "") -> dict:
     detail_snippets = [*article_texts, *meta_summaries]
     detailed_summary = _build_detailed_summary(title, detail_snippets)
     article_summary = _best_article_summary(title, detail_snippets)
+    detailed_summary = _dedupe_summary_sentences(
+        _prefer_fuller_summary(detailed_summary, article_summary)
+    )
     canonical_url = next(
         (u for u in parser.canonical_urls if u and not _is_redirect_url(u)),
         "",
@@ -560,7 +601,7 @@ def fetch_article_details(url: str, title: str = "") -> dict:
     return {
         "url": canonical_url or resp.url,
         "meta_summary": max(meta_summaries, key=len) if meta_summaries else "",
-        "detailed_summary": _prefer_fuller_summary(detailed_summary, article_summary),
+        "detailed_summary": detailed_summary,
         "article_text": article_text,
         "paragraphs": paragraphs[:40],
     }
@@ -616,6 +657,7 @@ def enrich_story_summaries(
     progress: Any | None = None,
 ) -> None:
     """Improve selected stories with richer summaries and read-further links."""
+    summarizer = get_llm_summarizer() if should_use_summary_model() else None
     for idx, story in enumerate(stories, 1):
         title = story.get("title") or ""
         original_summary = story.get("summary") or ""
@@ -663,6 +705,7 @@ def enrich_story_summaries(
             _build_detailed_summary(title, summary_pool),
             _best_article_summary(title, summary_pool),
         )
+        detailed = _dedupe_summary_sentences(detailed)
 
         if detailed and _is_detailed_article_summary(detailed):
             story["detailed_summary"] = detailed
@@ -677,6 +720,29 @@ def enrich_story_summaries(
                 story["detailed_summary"] = fetched
                 if fetched not in summaries:
                     summaries.append(fetched)
+
+        if summarizer is not None:
+            llm_input = "\n\n".join(
+                part
+                for part in [
+                    story.get("detailed_summary") or "",
+                    story.get("summary") or "",
+                    " ".join(detail_texts[:4]),
+                    " ".join(article_texts[:3]),
+                ]
+                if part
+            ).strip()
+            polished = summarizer.rewrite_summary(
+                title=title,
+                sources=story.get("sources") or [],
+                article_text=llm_input,
+                existing_summary=story.get("detailed_summary") or story.get("summary") or "",
+            )
+            if polished and _is_detailed_article_summary(polished):
+                story["detailed_summary"] = polished
+                story["summary"] = polished
+                if polished not in summaries:
+                    summaries.append(polished)
 
         if callable(progress):
             try:

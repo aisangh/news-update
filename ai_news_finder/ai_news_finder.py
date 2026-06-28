@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import sys
-from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -16,7 +15,7 @@ from collectors import collect_reddit, collect_rss
 from collectors.rss import enrich_story_summaries
 from discord_notifier import send_error_notification, send_report_file
 from generators import generate_html_report, generate_reel_content, generate_text_report
-from generators.report import export_json, format_date_human, _first_published, _story_summary
+from generators.report import export_json
 from hf_ranker import should_use_hf_ranker
 from llm_summary import should_use_summary_model, summary_model_name
 from processors import filter_ai_stories, group_stories, select_top_stories
@@ -159,12 +158,8 @@ def main() -> int:
     if active_models:
         print(f"🧠 Models active: {', '.join(active_models)}")
 
-    # Layer 1: collection
-    _stage("📡 Collecting RSS feeds...")
     rss_stories = collect_rss(cutoff)
     rss_ai = filter_ai_stories(rss_stories)
-    rss_sources = Counter((story.get("source") or "Unknown") for story in rss_ai)
-    print(f"    Found {len(rss_ai)} AI stories across {len(rss_sources)} sources")
 
     all_raw = rss_ai
     if not all_raw:
@@ -182,45 +177,19 @@ def main() -> int:
 
     total_scanned = len(all_raw)
 
-    # Layer 3: dedup
-    _stage("🔄 Deduplicating & grouping...")
     groups = group_stories(all_raw)
-    print(f"    Grouped into {len(groups)} unique story clusters")
-    if groups:
-        strongest = sorted(groups, key=lambda g: g.get("source_count", 0), reverse=True)[:5]
-        for item in strongest:
-            print(f"    • [{item.get('source_count', 0)} sources] {item.get('title') or ''}")
 
-    # Layer 4: selection (may need Reddit fill)
     primary_pool = [g for g in groups if g.get("source_count", 0) >= 3]
-    _stage("✅ Primary pool (3+ sources):", f"{len(primary_pool)} stories")
-    if primary_pool:
-        print(f"    Best matches: {_preview_titles(primary_pool)}")
 
     reddit_stories: list[dict] = []
     if len(primary_pool) < 10:
-        _stage("📱 Checking Reddit fallback...")
         reddit_raw = collect_reddit()
         reddit_stories = filter_ai_stories(reddit_raw) if reddit_raw else []
         if not reddit_stories and reddit_raw:
             reddit_stories = reddit_raw
-        print(f"    Reddit fallback returned {len(reddit_stories)} posts")
-    else:
-        print("    Reddit fallback skipped.")
 
-    if len(primary_pool) == 0:
-        print(
-            "💡 Tip: add more RSS sources in ai_news_finder/.env for better coverage.",
-        )
-
-    selected, stats = select_top_stories(groups, reddit_stories, limit=args.limit)
-    _stage("📊 Final selection:", f"{len(selected)} stories")
-    print(
-        "    Breakdown: "
-        f"{stats['primary_count']} primary, "
-        f"{stats['secondary_added']} secondary, "
-        f"{stats['reddit_added']} Reddit"
-    )
+    selected, _stats = select_top_stories(groups, reddit_stories, limit=args.limit)
+    print(f"📊 Final selection: {len(selected)} stories")
 
     if not selected:
         print("\nNo AI stories matched your criteria. Try increasing --days.", file=sys.stderr)
@@ -231,7 +200,6 @@ def main() -> int:
         )
         return 1
 
-    # Layer 5: reel content
     if _should_enrich_stories():
         enrich_limit = min(len(selected), _enrichment_limit(len(selected)))
         if enrich_limit > 0:
@@ -265,7 +233,6 @@ def main() -> int:
         if s.get("source_count", 0) >= 3 and not s.get("social_fallback")
     )
 
-    # Layer 6: reports (HTML + plain text, optional JSON)
     report_kwargs = dict(
         days=args.days,
         total_scanned=total_scanned,
@@ -280,28 +247,6 @@ def main() -> int:
         json_path = output_path.with_suffix(".json")
         export_json(selected, str(json_path), days=args.days)
         print(f"📄 JSON saved: {json_path.name}")
-
-    # Terminal summary
-    print(f"\n🏆 TOP {len(selected)} AI STORIES (last {args.days} days):")
-    print("━" * 34)
-    for story in selected:
-        rank = story.get("rank", 0)
-        sc = story.get("source_count", 1)
-        title = story.get("title", "")
-        sources = ", ".join(story.get("sources") or [])
-        first_pub = format_date_human(_first_published(story))
-        summary = _story_summary(story)
-        summary_model = str(story.get("summary_model") or "o").strip().lower()[:1] or "o"
-        if len(summary) > 120:
-            summary = summary[:117] + "..."
-        print(f"#{rank}  [{sc} sources] [{summary_model}] {title}")
-        print(f"    First published: {first_pub}")
-        print(f"    Sources: {sources}")
-        print(f"    Summary: {summary}")
-        print()
-
-    print(f"📄 HTML report: {output_path}")
-    print(f"📄 Text report:  {text_path}")
 
     # Send the HTML report file to Discord
     if output_path.exists():

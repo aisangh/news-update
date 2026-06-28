@@ -190,10 +190,10 @@ jobs:
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
           python3 - <<'PY'
-          import os
           import json
+          import os
           import pathlib
-          import requests
+          import subprocess
 
           username = os.environ.get("KAGGLE_USERNAME")
           key = os.environ.get("KAGGLE_KEY")
@@ -202,22 +202,28 @@ jobs:
               print("KAGGLE_USERNAME/KAGGLE_KEY not set. Skipping deletion.")
               raise SystemExit(0)
 
+          # Write credentials so kaggle CLI can pick them up
+          kaggle_dir = pathlib.Path.home() / ".kaggle"
+          kaggle_dir.mkdir(exist_ok=True)
+          creds = kaggle_dir / "kaggle.json"
+          creds.write_text(json.dumps({"username": username, "key": key}))
+          creds.chmod(0o600)
+
           metadata = json.loads(pathlib.Path("my-kaggle-notebook/kernel-metadata.json").read_text())
-          kernel_id = metadata["id"]
+          kernel_id = metadata["id"]   # e.g. aisangh/ai-news-finder-daily-20260628-abc1234
 
           print(f"Deleting Kaggle kernel: {kernel_id}")
 
-          response = requests.delete(
-              f"https://www.kaggle.com/api/v1/kernels/{kernel_id}",
-              auth=(username, key),
-              timeout=30,
+          result = subprocess.run(
+              ["kaggle", "kernels", "delete", kernel_id, "--yes"],
+              capture_output=True,
+              text=True,
           )
 
-          if response.status_code == 200:
-              print(f"Successfully deleted kernel: {kernel_id}")
-          elif response.status_code == 404:
-              print(f"Kernel not found (already deleted?): {kernel_id}")
+          print(result.stdout)
+          if result.returncode == 0:
+              print(f"Successfully deleted: {kernel_id}")
           else:
-              print(f"Failed to delete kernel: {response.status_code} — {response.text}")
+              print(f"Delete failed (exit {result.returncode}): {result.stderr}")
               raise SystemExit(1)
           PY

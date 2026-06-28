@@ -53,14 +53,28 @@ jobs:
           python3 - <<'PY'
           import json
           import os
+          from datetime import datetime, timezone
           from pathlib import Path
+
+          ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+          sha = os.environ["GITHUB_SHA"][:7]
+          slug = f"ai-news-finder-daily-{ts}-{sha}"
+          title = f"ai-news-finder-daily-{ts}-{sha}"
+
+          metadata_path = Path("my-kaggle-notebook/kernel-metadata.json")
+          metadata = json.loads(metadata_path.read_text())
+          metadata["id"] = f"aisangh/{slug}"
+          metadata["title"] = title
+          metadata_path.write_text(json.dumps(metadata, indent=2) + "\n")
 
           notebook_path = Path("my-kaggle-notebook/notebook.ipynb")
           notebook = json.loads(notebook_path.read_text())
-          notebook.setdefault("metadata", {})["codex_build_stamp"] = {
-              "sha": os.environ["GITHUB_SHA"][:7],
+          metadata = notebook.setdefault("metadata", {})
+          metadata["codex_build_stamp"] = {
+              "sha": sha,
               "run_number": os.environ["GITHUB_RUN_NUMBER"],
               "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "utc": ts,
           }
           notebook_path.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + "\n")
           PY

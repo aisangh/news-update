@@ -17,6 +17,7 @@ from collectors.rss import enrich_story_summaries
 from discord_notifier import send_error_notification, send_report_file
 from generators import generate_html_report, generate_reel_content, generate_text_report
 from generators.report import export_json, format_date_human, _first_published, _story_summary
+from hf_ranker import should_use_hf_ranker
 from llm_summary import should_use_summary_model, summary_model_name
 from processors import filter_ai_stories, group_stories, select_top_stories
 
@@ -150,14 +151,13 @@ def main() -> int:
 
     print("Running AI News Finder...")
 
-    hf_model = os.getenv("AI_NEWS_HF_MODEL", "sentence-transformers/all-mpnet-base-v2")
-    hf_enabled = os.getenv("AI_NEWS_USE_HF", "auto")
-    print(f"🧠 AI ranking model: {hf_model} (AI_NEWS_USE_HF={hf_enabled})")
-    summary_enabled = os.getenv("AI_NEWS_USE_SUMMARY_MODEL", "auto")
-    print(
-        f"📝 Summary model: {summary_model_name()} "
-        f"(AI_NEWS_USE_SUMMARY_MODEL={summary_enabled}, active={should_use_summary_model()})"
-    )
+    active_models: list[str] = []
+    if should_use_hf_ranker():
+        active_models.append("ranker=sentence-transformers/all-mpnet-base-v2")
+    if should_use_summary_model():
+        active_models.append(f"summary={summary_model_name()}")
+    if active_models:
+        print(f"🧠 Active models: {', '.join(active_models)}")
 
     # Layer 1: collection
     _stage("📡 Collecting RSS feeds...")
@@ -168,11 +168,6 @@ def main() -> int:
     rss_ai = filter_ai_stories(rss_stories)
     rss_sources = Counter((story.get("source") or "Unknown") for story in rss_ai)
     print(f"    Found {len(rss_ai)} AI stories across {len(rss_sources)} sources")
-    if rss_sources:
-        top_sources = ", ".join(f"{src} ({count})" for src, count in rss_sources.most_common(5))
-        print(f"    Top feeds: {top_sources}")
-    if rss_ai:
-        print(f"    Samples: {_preview_titles(rss_ai)}")
 
     all_raw = rss_ai
     if not all_raw:
@@ -213,10 +208,8 @@ def main() -> int:
         if not reddit_stories and reddit_raw:
             reddit_stories = reddit_raw
         print(f"    Reddit fallback returned {len(reddit_stories)} posts")
-        if reddit_stories:
-            print(f"    Samples: {_preview_titles(reddit_stories)}")
     else:
-        print("    Reddit fallback skipped because the primary pool already covers the shortlist.")
+        print("    Reddit fallback skipped.")
 
     if len(primary_pool) == 0:
         print(
@@ -231,8 +224,6 @@ def main() -> int:
         f"{stats['secondary_added']} secondary, "
         f"{stats['reddit_added']} Reddit"
     )
-    if selected:
-        print(f"    Final picks: {_preview_titles(selected, limit=min(5, len(selected)))}")
 
     if not selected:
         print("\nNo AI stories matched your criteria. Try increasing --days.", file=sys.stderr)
@@ -247,22 +238,22 @@ def main() -> int:
     if _should_enrich_stories():
         enrich_limit = min(len(selected), _enrichment_limit(len(selected)))
         if enrich_limit > 0:
-            label = "all selected stories" if enrich_limit == len(selected) else f"{enrich_limit} selected stories"
-            print(f"🧠 Enriching {label} with article details...")
+            print(f"🧠 Enriching {enrich_limit} stories...")
 
             def _enrich_progress(idx: int, total: int, story: dict, status: str) -> None:
                 title = str(story.get("title") or "").strip()
-                print(f"    [{idx}/{total}] {status}: {title}")
+                mark = "✓" if status == "enriched" else "·"
+                print(f"    [{idx}/{total}] {mark} {title}")
 
             enrich_story_summaries(selected[:enrich_limit], progress=_enrich_progress)
         else:
-            print("🧠 Enrichment is enabled but the top-k limit is 0, so article fetching is skipped.")
+            print("🧠 Enrichment skipped.")
     else:
-        print("🧠 Skipping article enrichment in Kaggle for speed.")
+        print("🧠 Enrichment skipped.")
 
     for story in selected:
         generate_reel_content(story)
-    print("✍️ Generated captions, hashtags, and cover text.")
+    print("✍️ Generated captions.")
 
     # Sources used
     sources_used: list[str] = []

@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import os
 import re
+import warnings
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
+
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
 
 def _running_in_kaggle() -> bool:
@@ -41,6 +45,10 @@ def _clean_generated_text(text: str) -> str:
     return clean
 
 
+warnings.filterwarnings("ignore", message="`torch_dtype` is deprecated!")
+warnings.filterwarnings("ignore", message="The following generation flags are not valid and may be ignored:*")
+
+
 @dataclass
 class LLMStorySummarizer:
     model_name: str = field(default_factory=summary_model_name)
@@ -66,11 +74,11 @@ class LLMStorySummarizer:
 
         load_attempts = [
             {
-                "torch_dtype": torch.float16 if torch.cuda.is_available() else torch.float32,
+                "dtype": torch.float16 if torch.cuda.is_available() else torch.float32,
                 "device_map": "auto" if torch.cuda.is_available() else None,
             },
             {
-                "torch_dtype": torch.float32,
+                "dtype": torch.float32,
                 "device_map": None,
             },
         ]
@@ -149,7 +157,6 @@ class LLMStorySummarizer:
                 **inputs,
                 max_new_tokens=220,
                 do_sample=False,
-                temperature=0.2,
                 repetition_penalty=1.08,
                 pad_token_id=getattr(tokenizer, "eos_token_id", None),
             )

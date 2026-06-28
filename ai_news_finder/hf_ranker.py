@@ -13,6 +13,9 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
 
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
+
 POSITIVE_PROFILES: dict[str, str] = {
     "general": "major AI news story that a general audience would care about",
     "product": "AI product launch or major consumer feature update with wide impact",

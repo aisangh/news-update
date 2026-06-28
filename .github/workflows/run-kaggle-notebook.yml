@@ -161,8 +161,9 @@ jobs:
           metadata = json.loads(pathlib.Path("my-kaggle-notebook/kernel-metadata.json").read_text())
           kernel_id = metadata["id"]
           output_dir = pathlib.Path("kaggle-output")
+
           report_files = sorted(
-              list(list(output_dir.rglob("*.html")),
+              list(output_dir.rglob("*.html")),
               key=lambda path: path.stat().st_mtime,
               reverse=True,
           )
@@ -172,7 +173,7 @@ jobs:
           if report_files:
               report_path = report_files[0]
               with report_path.open("rb") as f:
-                  files = {"file": (report_path.name, f)}
+                  files = {"file": (report_path.name, f, "text/html")}
                   data = {"content": content}
                   response = requests.post(webhook_url, data=data, files=files, timeout=30)
           else:

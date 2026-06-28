@@ -77,8 +77,9 @@ What to do:
 3. Add these GitHub repository secrets:
    - Preferred: `KAGGLE_API_TOKEN`
    - Or legacy pair: `KAGGLE_USERNAME` and `KAGGLE_KEY`
-4. Make sure the Kaggle notebook accelerator is set to GPU in Kaggle. Kaggle controls the exact GPU flavor in the notebook settings.
-5. Let GitHub Actions push the notebook daily at 04:30 UTC, which is 10:00 AM IST.
+4. Add `DISCORD_WEBHOOK_URL` to GitHub Secrets if you want GitHub Actions to post the finished report to Discord.
+5. Make sure the Kaggle notebook accelerator is set to GPU in Kaggle. Kaggle controls the exact GPU flavor in the notebook settings.
+6. Let GitHub Actions push the notebook daily at 04:30 UTC, which is 10:00 AM IST.
 
 The notebook itself clones this repo, installs dependencies, and runs the
 pipeline on Kaggle with the configured accelerator.

@@ -56,6 +56,14 @@ def _default_reports_dir() -> Path:
     return _pkg_dir.parent / "reports"
 
 
+def _should_enrich_stories() -> bool:
+    if os.getenv("AI_NEWS_ENRICH_STORIES") == "1":
+        return True
+    if os.getenv("AI_NEWS_ENRICH_STORIES") == "0":
+        return False
+    return not _running_in_kaggle()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Curate top 10 viral AI news stories for Instagram Reels.",
@@ -175,7 +183,8 @@ def main() -> int:
         return 1
 
     # Layer 5: reel content
-    enrich_story_summaries(selected)
+    if _should_enrich_stories():
+        enrich_story_summaries(selected)
     for story in selected:
         generate_reel_content(story)
 

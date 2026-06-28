@@ -495,28 +495,40 @@ def fetch_article_details(url: str, title: str = "") -> dict:
     if not url:
         return {}
 
-    try:
-        resp = _session().get(
-            url,
-            headers={
-                "User-Agent": BROWSER_USER_AGENT,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Cache-Control": "no-cache",
-                "Referer": "https://www.google.com/",
-            },
-            timeout=TIMEOUT,
-            allow_redirects=True,
-        )
-        resp.raise_for_status()
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code in (403, 401):
-            logger.debug("Access blocked (%s) for %s", e.response.status_code, url)
-        else:
+    user_agents = [
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    ]
+
+    for ua in user_agents:
+        try:
+            resp = _session().get(
+                url,
+                headers={
+                    "User-Agent": ua,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Cache-Control": "no-cache",
+                    "Referer": "https://www.google.com/",
+                },
+                timeout=TIMEOUT,
+                allow_redirects=True,
+            )
+            resp.raise_for_status()
+            break
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code in (403, 401):
+                logger.debug(f"Access blocked ({e.response.status_code}) for {url}, trying next UA...")
+                continue
             logger.debug("Article summary fetch failed (%s): %s", url, e)
-        return {}
-    except Exception as exc:
-        logger.debug("Article summary fetch failed (%s): %s", url, exc)
+            return {}
+        except Exception as exc:
+            logger.debug("Article summary fetch failed (%s): %s", url, exc)
+            return {}
+    else:
+        logger.debug("All User-Agents blocked for %s", url)
         return {}
 
     parser = _MetaSummaryParser()

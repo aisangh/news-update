@@ -661,11 +661,7 @@ def enrich_story_summaries(
     for idx, story in enumerate(stories, 1):
         title = story.get("title") or ""
         original_summary = story.get("summary") or ""
-        if callable(progress):
-            try:
-                progress(idx, len(stories), story, "starting")
-            except Exception:
-                pass
+        status_label = "o"
         story["read_more_links"] = _read_more_links(story, limit=10)
         article_texts: list[str] = []
         detail_texts: list[str] = []
@@ -710,9 +706,11 @@ def enrich_story_summaries(
         if detailed and _is_detailed_article_summary(detailed):
             story["detailed_summary"] = detailed
             story["summary"] = detailed
+            status_label = "a"
         elif original_summary and len(original_summary.split()) >= 20:
             story["summary"] = original_summary
             story["detailed_summary"] = original_summary
+            status_label = "o"
         elif _looks_weak_summary(story.get("summary") or "", title):
             fetched = fetch_article_summary(story.get("url") or "", title)
             if fetched and _is_detailed_article_summary(fetched):
@@ -720,6 +718,7 @@ def enrich_story_summaries(
                 story["detailed_summary"] = fetched
                 if fetched not in summaries:
                     summaries.append(fetched)
+                status_label = "a"
 
         if summarizer is not None:
             llm_input = "\n\n".join(
@@ -743,13 +742,14 @@ def enrich_story_summaries(
                 story["summary"] = polished
                 if polished not in summaries:
                     summaries.append(polished)
+                status_label = "q"
 
         if callable(progress):
             try:
-                status = "enriched" if story.get("detailed_summary") else "kept original"
-                progress(idx, len(stories), story, status)
+                progress(idx, len(stories), story, status_label)
             except Exception:
                 pass
+        story["summary_model"] = status_label
 
 
 def _entry_summary(entry: Any) -> str:

@@ -153,18 +153,15 @@ def main() -> int:
 
     active_models: list[str] = []
     if should_use_hf_ranker():
-        active_models.append("ranker=sentence-transformers/all-mpnet-base-v2")
+        active_models.append("hf")
     if should_use_summary_model():
-        active_models.append(f"summary={summary_model_name()}")
+        active_models.append("qwen")
     if active_models:
-        print(f"🧠 Active models: {', '.join(active_models)}")
+        print(f"🧠 Models active: {', '.join(active_models)}")
 
     # Layer 1: collection
     _stage("📡 Collecting RSS feeds...")
-    def _rss_progress(message: str) -> None:
-        print(message)
-
-    rss_stories = collect_rss(cutoff, progress=_rss_progress)
+    rss_stories = collect_rss(cutoff)
     rss_ai = filter_ai_stories(rss_stories)
     rss_sources = Counter((story.get("source") or "Unknown") for story in rss_ai)
     print(f"    Found {len(rss_ai)} AI stories across {len(rss_sources)} sources")
@@ -242,8 +239,7 @@ def main() -> int:
 
             def _enrich_progress(idx: int, total: int, story: dict, status: str) -> None:
                 title = str(story.get("title") or "").strip()
-                mark = "✓" if status == "enriched" else "·"
-                print(f"    [{idx}/{total}] {mark} {title}")
+                print(f"    [{idx}/{total}] {status} {title}")
 
             enrich_story_summaries(selected[:enrich_limit], progress=_enrich_progress)
         else:
@@ -295,9 +291,10 @@ def main() -> int:
         sources = ", ".join(story.get("sources") or [])
         first_pub = format_date_human(_first_published(story))
         summary = _story_summary(story)
+        summary_model = str(story.get("summary_model") or "o").strip().lower()[:1] or "o"
         if len(summary) > 120:
             summary = summary[:117] + "..."
-        print(f"#{rank}  [{sc} sources] {title}")
+        print(f"#{rank}  [{sc} sources] [{summary_model}] {title}")
         print(f"    First published: {first_pub}")
         print(f"    Sources: {sources}")
         print(f"    Summary: {summary}")

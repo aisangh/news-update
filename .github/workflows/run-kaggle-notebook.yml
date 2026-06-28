@@ -44,5 +44,26 @@ jobs:
             exit 1
           fi
 
+      - name: Stamp notebook version
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          notebook_path = Path("my-kaggle-notebook/notebook.ipynb")
+          notebook = json.loads(notebook_path.read_text())
+          notebook.setdefault("metadata", {})["codex_build_stamp"] = {
+              "sha": os.environ["GITHUB_SHA"][:7],
+              "run_number": os.environ["GITHUB_RUN_NUMBER"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+          }
+          notebook_path.write_text(json.dumps(notebook, indent=1, ensure_ascii=False) + "\n")
+          PY
+
       - name: Push notebook to Kaggle
         run: kaggle kernels push -p ./my-kaggle-notebook

@@ -74,6 +74,45 @@ FINANCE_EXCLUSION_KEYWORDS = [
     "quarterly",
 ]
 
+LOW_SIGNAL_CONTENT_KEYWORDS = [
+    "press release",
+    "sponsored",
+    "sponsorship",
+    "advertorial",
+    "newswire",
+    "business wire",
+    "globenewswire",
+    "pr newswire",
+    "wire service",
+    "opinion",
+    "op-ed",
+    "guest column",
+    "newsletter",
+    "podcast",
+    "webinar",
+    "roundup",
+    "how to",
+    "tutorial",
+    "guide",
+    "systematic review",
+    "meta-analysis",
+    "case study",
+    "case report",
+    "student",
+    "students",
+    "teacher",
+    "teachers",
+    "classroom",
+    "school district",
+    "local government",
+    "city council",
+    "county",
+    "state lawmakers",
+    "training",
+    "workshop",
+    "professional development",
+]
+
 EXCLUSION_KEYWORDS = [
     "horoscope",
     "zodiac",
@@ -108,6 +147,9 @@ def filter_ai_stories(stories: list[dict]) -> list[dict]:
             continue
 
         if _contains_any(text, FINANCE_EXCLUSION_KEYWORDS):
+            continue
+
+        if _contains_any(text, LOW_SIGNAL_CONTENT_KEYWORDS):
             continue
 
         if _contains_any(text, AI_KEYWORDS):

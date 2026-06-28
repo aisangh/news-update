@@ -201,6 +201,23 @@ def _clean_feed_text(raw: str) -> str:
     text = re.sub(r"\bRead more\b.*$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"\bThe post .+? appeared first on .+?\.$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"\bBy [A-Z][A-Za-z .'-]{2,80}$", "", text).strip()
+    boilerplate_patterns = [
+        r"\bYou can contact or verify outreach.*$",
+        r"\bYou can contact.*$",
+        r"\bYou can reach.*$",
+        r"\bPreviously, he worked.*$",
+        r"\bPreviously, she worked.*$",
+        r"\bPreviously.*$",
+        r"\bThe first StrictlyVC.*$",
+        r"\bFounder Summit ticket savings.*$",
+        r"\bNews, deals, reviews, guides and more.*$",
+        r"\breporter at .*?$",
+        r"\beditor in chief.*$",
+        r"\bvice president of content.*$",
+        r"\bcontact or verify outreach.*$",
+    ]
+    for pattern in boilerplate_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
     return text
 
 
@@ -294,7 +311,11 @@ def _article_sentence_score(sentence: str, title_keywords: set[str], seen: set[s
     noisy_phrases = (
         "subscribe", "newsletter", "cookie", "advertisement", "sign up",
         "live updates", "seems to be getting", "click here", "read our",
-        "affiliate links", "earn us a commission",
+        "affiliate links", "earn us a commission", "you can contact",
+        "you can reach", "reporter at", "editor in chief", "strictlyvc",
+        "founder summit", "ticket savings", "vice president of content",
+        "previously, he worked", "previously, she worked", "previously worked",
+        "news, deals, reviews, guides and more",
     )
     if any(bad in lower for bad in noisy_phrases) or "…" in sentence:
         return -100
@@ -374,7 +395,11 @@ def _best_article_summary(title: str, snippets: list[str]) -> str:
         noisy_phrases = (
             "subscribe", "newsletter", "cookie", "advertisement", "sign up",
             "live updates", "click here", "read our", "all rights reserved",
-            "affiliate links", "earn us a commission",
+            "affiliate links", "earn us a commission", "you can contact",
+            "you can reach", "reporter at", "editor in chief", "strictlyvc",
+            "founder summit", "ticket savings", "vice president of content",
+            "previously, he worked", "previously, she worked", "previously worked",
+            "news, deals, reviews, guides and more",
         )
         if len(words) < 10 or len(words) > 65:
             return False

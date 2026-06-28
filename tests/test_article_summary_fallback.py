@@ -333,6 +333,36 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
 
         self.assertEqual(selected[0]["url"], "https://example.com/ai-model-detailed")
 
+    def test_filter_excludes_press_release_and_classroom_noise(self) -> None:
+        stories = [
+            {
+                "title": "OpenAI launches new AI teaching tools in a press release",
+                "summary": "A press release says the company is rolling out training for schools.",
+            },
+            {
+                "title": "OpenAI launches a new reasoning model for developers",
+                "summary": "The company shipped a new model with stronger coding and agentic workflows.",
+            },
+        ]
+
+        filtered = filter_ai_stories(stories)
+
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0]["title"], "OpenAI launches a new reasoning model for developers")
+
+    def test_publisher_boilerplate_is_removed_from_summary(self) -> None:
+        text = (
+            "Paul Meade is leaving for OpenAI. Previously, he worked as a tech reporter "
+            "at Adweek. You can contact or verify outreach from Anthony by emailing "
+            "anthony.ha@techcrunch.com. The first StrictlyVC of 2026 hits SF on April 30."
+        )
+
+        cleaned = rss._clean_feed_text(text)
+
+        self.assertNotIn("Previously", cleaned)
+        self.assertNotIn("contact or verify outreach", cleaned)
+        self.assertNotIn("StrictlyVC", cleaned)
+
 
 if __name__ == "__main__":
     unittest.main()

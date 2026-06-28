@@ -62,14 +62,23 @@ def generate_hook(story: dict) -> str:
     company = extract_company(title)
     topic = _extract_topic(title)
     title_short = _title_short(title)
-    idx = _seed(title) % 5
+    source_count = int(story.get("source_count", 1) or 1)
+    idx = _seed(title) % 6
+    coverage_note = (
+        "It's showing up across several outlets"
+        if source_count >= 3
+        else "It's getting attention from more than one source"
+        if source_count == 2
+        else "It is a single-source story worth a careful look"
+    )
 
     templates = [
-        f"📌 {company} just {VERBS[_seed(title + 'v') % len(VERBS)]} a change that {IMPACTS[_seed(title + 'i') % len(IMPACTS)]}",
+        f"{company} just {VERBS[_seed(title + 'v') % len(VERBS)]} a move that {IMPACTS[_seed(title + 'i') % len(IMPACTS)]}",
         f"Today in AI: {title_short}",
-        f"💡 Why {topic} matters this week",
-        f"🧭 The {topic} story people are following right now",
-        f"👀 {company} {ACTIONS[_seed(title + 'a') % len(ACTIONS)]} — here's the context",
+        f"Why {topic} matters this week",
+        f"The {topic} story people are following right now",
+        f"{company} {ACTIONS[_seed(title + 'a') % len(ACTIONS)]} and the context matters",
+        f"{coverage_note}: {title_short}",
     ]
     hook = templates[idx]
     words = hook.split()
@@ -94,8 +103,8 @@ def generate_caption(story: dict) -> str:
         f"This story is getting attention across {source_note} and is worth following "
         "if you want the clearest AI updates without the noise."
     )
-    para3 = "Why it matters: these are the stories that usually influence the tools, policies, and products most people see next."
-    cta = "Follow for calm, useful AI updates that cut through the hype."
+    para3 = "Why it matters: these are the stories most likely to shape the tools, policies, and products people will actually notice."
+    cta = "Follow for clear AI updates that stay focused on what matters."
 
     caption = f"{para1}\n\n{para2}\n\n{para3}\n\n{cta}"
     words = caption.split()

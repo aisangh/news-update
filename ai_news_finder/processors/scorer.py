@@ -23,6 +23,67 @@ MAINSTREAM_SOURCE_BONUS = {
     "google news": 20,
 }
 
+LOW_SIGNAL_SOURCE_HINTS = (
+    "pr newswire",
+    "business wire",
+    "globenewswire",
+    "press release",
+    "newsroom",
+    "wire service",
+    "cureus",
+    "journal",
+    "university",
+    "college",
+    "school",
+    "reflector",
+    "recorder",
+    "news service",
+)
+
+LOW_SIGNAL_TITLE_HINTS = (
+    "press release",
+    "systematic review",
+    "case report",
+    "case study",
+    "in the classroom",
+    "teachers",
+    "teacher",
+    "students",
+    "student",
+    "training",
+    "workshop",
+    "webinar",
+    "newsletter",
+    "podcast",
+    "roundup",
+    "opinion",
+    "op-ed",
+)
+
+MAINSTREAM_FOCUS_HINTS = (
+    "openai",
+    "anthropic",
+    "claude",
+    "gemini",
+    "chatgpt",
+    "gpt-",
+    "model",
+    "launch",
+    "release",
+    "rollout",
+    "policy",
+    "regulation",
+    "safety",
+    "robot",
+    "robotics",
+    "chip",
+    "agents",
+    "agent",
+    "reasoning",
+    "multimodal",
+    "data center",
+)
+
 
 def _story_titles(story: dict) -> list[str]:
     titles = [story.get("title") or "", *(story.get("all_titles") or [])]
@@ -69,27 +130,16 @@ def _story_quality_score(story: dict) -> int:
             score += bonus
             break
     title = (story.get("title") or "").lower()
-    high_signal_terms = (
-        "openai",
-        "anthropic",
-        "claude",
-        "gemini",
-        "chatgpt",
-        "reasoning model",
-        "multimodal",
-        "agent",
-        "ai chip",
-        "data center",
-        "policy",
-        "regulation",
-        "safety",
-        "robot",
-        "robotics",
-        "launch",
-        "release",
-    )
-    if any(term in title for term in high_signal_terms):
+    if any(term in title for term in MAINSTREAM_FOCUS_HINTS):
         score += 12
+    if any(term in sources for term in LOW_SIGNAL_SOURCE_HINTS):
+        score -= 120
+    if any(term in title for term in LOW_SIGNAL_TITLE_HINTS):
+        score -= 120
+    if source_count <= 1:
+        score -= 20
+    elif source_count == 2:
+        score += 20
     return score
 
 
@@ -123,7 +173,7 @@ def select_top_stories(
     """
     reddit_stories = reddit_stories or []
 
-    primary = [g for g in groups if g.get("source_count", 0) >= 3]
+    primary = [g for g in groups if g.get("source_count", 0) >= 3 and _story_quality_score(g) >= 260]
     primary.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
     selected: list[dict] = []
     for item in primary:
@@ -133,7 +183,10 @@ def select_top_stories(
 
     secondary_added = 0
     if len(selected) < limit:
-        secondary = [g for g in groups if g.get("source_count", 0) < 3]
+        secondary = [
+            g for g in groups
+            if 2 <= g.get("source_count", 0) < 3 and _story_quality_score(g) >= 220
+        ]
         secondary.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
         for g in secondary:
             if _append_unique_story(selected, g):
@@ -159,8 +212,20 @@ def select_top_stories(
                 "all_summaries": [post.get("summary") or ""] if post.get("summary") else [],
                 "social_fallback": "reddit",
             }
-            if _append_unique_story(selected, item):
+            if _story_quality_score(item) >= 220 and _append_unique_story(selected, item):
                 reddit_added += 1
+            if len(selected) >= limit:
+                break
+
+    if len(selected) < limit:
+        recovery = [
+            g for g in groups
+            if g.get("source_count", 0) == 1 and _story_quality_score(g) >= 250
+        ]
+        recovery.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
+        for g in recovery:
+            if _append_unique_story(selected, g):
+                secondary_added += 1
             if len(selected) >= limit:
                 break
 

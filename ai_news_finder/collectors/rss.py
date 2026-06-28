@@ -16,6 +16,8 @@ from urllib.parse import parse_qs, quote_plus, urlparse
 import feedparser
 import requests
 from dateutil import parser as date_parser
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +38,44 @@ FEEDS = [
     ("Wired AI", "https://www.wired.com/feed/tag/ai/latest/rss"),
     ("ZDNet AI", "https://www.zdnet.com/topic/artificial-intelligence/rss.xml"),
     ("InfoQ AI", "https://feed.infoq.com/"),
+    ("BBC Technology", "https://feeds.bbci.co.uk/news/technology/rss.xml"),
 ]
 
 GOOGLE_NEWS_QUERIES = [
     "artificial+intelligence",
-    "OpenAI+OR+ChatGPT+OR+Claude+OR+Gemini",
-    "machine+learning+OR+LLM",
+    "OpenAI+OR+ChatGPT+OR+Claude+OR+Gemini+OR+Anthropic",
+    "machine+learning+OR+LLM+OR+reasoning+model",
+    "AI+chip+OR+Nvidia+OR+AMD+OR+data+center",
+    "AI+regulation+OR+copyright+OR+safety+OR+policy",
+    "AI+feature+OR+launch+OR+product",
+    "robotics+OR+humanoid+OR+automation+OR+AI+robot",
 ]
+
+
+@lru_cache(maxsize=1)
+def _session() -> requests.Session:
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        connect=3,
+        read=3,
+        status=3,
+        backoff_factor=0.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset({"GET"}),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    session.headers.update(
+        {
+            "User-Agent": USER_AGENT,
+            "Accept": "application/rss+xml, application/xml, text/xml, text/html, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+    )
+    return session
 
 
 class _MetaSummaryParser(HTMLParser):
@@ -132,15 +165,7 @@ def _google_news_url(query: str) -> str:
 
 def _fetch_feed(url: str) -> bytes | str | None:
     try:
-        resp = requests.get(
-            url,
-            headers={
-                "User-Agent": USER_AGENT,
-                "Accept": "application/rss+xml, application/xml, text/xml, */*",
-            },
-            timeout=TIMEOUT,
-            allow_redirects=True,
-        )
+        resp = _session().get(url, timeout=TIMEOUT, allow_redirects=True)
         resp.raise_for_status()
         return resp.content
     except Exception as exc:
@@ -439,7 +464,7 @@ def _resolve_redirect_url(url: str) -> str:
     if not url:
         return ""
     try:
-        resp = requests.get(
+        resp = _session().get(
             url,
             headers={
                 "User-Agent": BROWSER_USER_AGENT,
@@ -469,7 +494,7 @@ def fetch_article_details(url: str, title: str = "") -> dict:
 
     for ua in user_agents:
         try:
-            resp = requests.get(
+            resp = _session().get(
                 url,
                 headers={
                     "User-Agent": ua,
@@ -758,7 +783,7 @@ def _discover_from_publisher_search(title: str, source_home: str) -> str:
         return ""
     search_title = _clean_title_for_search(title)
     try:
-        resp = requests.get(
+        resp = _session().get(
             source_home.rstrip("/") + "/",
             params={"s": search_title},
             headers={"User-Agent": BROWSER_USER_AGENT},
@@ -818,7 +843,7 @@ def discover_article_url(title: str, source_home: str) -> str:
     search_title = _clean_title_for_search(title)
     query = f"site:{source_host} {search_title}"
     try:
-        resp = requests.get(
+        resp = _session().get(
             "https://duckduckgo.com/html/",
             params={"q": query},
             headers={"User-Agent": BROWSER_USER_AGENT},
@@ -861,7 +886,7 @@ def discover_article_url_by_source(title: str, source_label: str) -> str:
     search_title = _clean_title_for_search(title)
     query = f"{search_title} {source_label}"
     try:
-        resp = requests.get(
+        resp = _session().get(
             "https://duckduckgo.com/html/",
             params={"q": query},
             headers={"User-Agent": BROWSER_USER_AGENT},

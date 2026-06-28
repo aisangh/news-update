@@ -186,7 +186,11 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
             def raise_for_status(self) -> None:
                 return None
 
-        with patch.object(rss.requests, "get", return_value=Response()):
+        class Session:
+            def get(self, *args, **kwargs):
+                return Response()
+
+        with patch.object(rss, "_session", return_value=Session()):
             url = rss._discover_from_publisher_search(
                 "I pay for Gemini, ChatGPT, and Claude - Android Authority",
                 "https://www.androidauthority.com",

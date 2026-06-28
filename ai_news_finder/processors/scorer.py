@@ -7,6 +7,22 @@ from .dedup import _title_similarity
 TOP_N = 10
 DUPLICATE_THRESHOLD = 0.64
 
+MAINSTREAM_SOURCE_BONUS = {
+    "reuters": 70,
+    "bbc": 60,
+    "ap": 55,
+    "associated press": 55,
+    "techcrunch": 45,
+    "the verge": 40,
+    "wired": 40,
+    "ars technica": 40,
+    "mit tech review": 38,
+    "venturebeat": 36,
+    "zdnet": 30,
+    "infoq": 28,
+    "google news": 20,
+}
+
 
 def _story_titles(story: dict) -> list[str]:
     titles = [story.get("title") or "", *(story.get("all_titles") or [])]
@@ -47,6 +63,33 @@ def _story_quality_score(story: dict) -> int:
         score += 15
     if story.get("url") and not str(story.get("url")).startswith("https://news.google.com"):
         score += 10
+    sources = " ".join(story.get("sources") or []).lower()
+    for needle, bonus in MAINSTREAM_SOURCE_BONUS.items():
+        if needle in sources:
+            score += bonus
+            break
+    title = (story.get("title") or "").lower()
+    high_signal_terms = (
+        "openai",
+        "anthropic",
+        "claude",
+        "gemini",
+        "chatgpt",
+        "reasoning model",
+        "multimodal",
+        "agent",
+        "ai chip",
+        "data center",
+        "policy",
+        "regulation",
+        "safety",
+        "robot",
+        "robotics",
+        "launch",
+        "release",
+    )
+    if any(term in title for term in high_signal_terms):
+        score += 12
     return score
 
 

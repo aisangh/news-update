@@ -5,6 +5,8 @@ import time
 from datetime import datetime, timezone
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +22,31 @@ SUBREDDITS = [
 ]
 
 
+def _session() -> requests.Session:
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        connect=3,
+        read=3,
+        status=3,
+        backoff_factor=0.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=frozenset({"GET"}),
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
+    return session
+
+
 def _fetch_subreddit(sub: str) -> list[dict]:
     url = f"https://www.reddit.com/r/{sub}/search.json"
     params = {"q": "AI OR OpenAI OR ChatGPT OR LLM", "restrict_sr": "1", "sort": "new", "t": "week", "limit": 15}
-    resp = requests.get(
+    resp = _session().get(
         url,
         params=params,
-        headers={"User-Agent": USER_AGENT},
         timeout=TIMEOUT,
     )
     resp.raise_for_status()

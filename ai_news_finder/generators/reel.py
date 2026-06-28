@@ -22,12 +22,12 @@ COMPANIES = [
 
 VERBS = ["launched", "unveiled", "released", "announced", "introduced"]
 IMPACTS = [
-    "changes EVERYTHING about how we work",
-    "could reshape the entire AI industry",
-    "is making developers rethink their stack",
-    "might be the biggest AI drop this year",
+    "matters for how people use AI day to day",
+    "could influence the next wave of AI products",
+    "is getting attention across the AI world",
+    "could shape what teams build next",
 ]
-ACTIONS = ["shipped a major update", "made a huge move", "dropped a surprise release"]
+ACTIONS = ["shipped a major update", "made a notable move", "rolled out a new release"]
 
 
 def _seed(text: str) -> int:
@@ -65,11 +65,11 @@ def generate_hook(story: dict) -> str:
     idx = _seed(title) % 5
 
     templates = [
-        f"🤯 {company} just {VERBS[_seed(title + 'v') % len(VERBS)]} something that {IMPACTS[_seed(title + 'i') % len(IMPACTS)]}",
-        f"🚨 Breaking: {title_short} — here's what you need to know",
-        f"💡 Why {topic} is the most important AI story this week",
-        f"🔥 The biggest {topic} story right now — the AI world is talking about this",
-        f"👀 {company} quietly {ACTIONS[_seed(title + 'a') % len(ACTIONS)]} and nobody is talking about it",
+        f"📌 {company} just {VERBS[_seed(title + 'v') % len(VERBS)]} a change that {IMPACTS[_seed(title + 'i') % len(IMPACTS)]}",
+        f"Today in AI: {title_short}",
+        f"💡 Why {topic} matters this week",
+        f"🧭 The {topic} story people are following right now",
+        f"👀 {company} {ACTIONS[_seed(title + 'a') % len(ACTIONS)]} — here's the context",
     ]
     hook = templates[idx]
     words = hook.split()
@@ -91,11 +91,11 @@ def generate_caption(story: dict) -> str:
 
     para1 = f"📰 {what}"
     para2 = (
-        f"This story is gaining traction across {source_note} — "
-        "a signal that it's worth paying attention to if you follow AI."
+        f"This story is getting attention across {source_note} and is worth following "
+        "if you want the clearest AI updates without the noise."
     )
-    para3 = "Why it matters: AI moves fast, and stories like this shape what tools, rules, and products hit the market next."
-    cta = "Drop a 🤖 if you want more breakdowns like this. Follow for daily AI updates 🤖"
+    para3 = "Why it matters: these are the stories that usually influence the tools, policies, and products most people see next."
+    cta = "Follow for calm, useful AI updates that cut through the hype."
 
     caption = f"{para1}\n\n{para2}\n\n{para3}\n\n{cta}"
     words = caption.split()
@@ -138,10 +138,8 @@ def _story_hashtags(story: dict) -> list[str]:
         "#Innovation",
         "#FutureTech",
         "#TechNews",
-        "#Reels",
-        "#InstagramReels",
-        "#Viral",
-        "#Trending",
+        "#News",
+        "#AIUpdates",
         "#TechTok",
     ]
     for tag in filler:

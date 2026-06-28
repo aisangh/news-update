@@ -256,7 +256,7 @@ def main() -> int:
 
     for story in selected:
         generate_reel_content(story)
-    print("✍️ Generated reel hooks, captions, and cover text.")
+    print("✍️ Generated captions, hashtags, and cover text.")
 
     # Sources used
     sources_used: list[str] = []
@@ -296,7 +296,6 @@ def main() -> int:
         sc = story.get("source_count", 1)
         title = story.get("title", "")
         sources = ", ".join(story.get("sources") or [])
-        hook = story.get("hook", "")
         first_pub = format_date_human(_first_published(story))
         summary = _story_summary(story)
         if len(summary) > 120:
@@ -305,7 +304,6 @@ def main() -> int:
         print(f"    First published: {first_pub}")
         print(f"    Sources: {sources}")
         print(f"    Summary: {summary}")
-        print(f"    Hook: {hook}")
         print()
 
     print(f"📄 HTML report: {output_path}")

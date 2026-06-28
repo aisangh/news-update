@@ -269,7 +269,6 @@ def generate_html_report(
         takeaway = _esc(brief["takeaway"])
         why = _esc(brief["why"])
         source_line = _esc(brief["source_line"])
-        hook = _esc(story.get("hook") or "")
         ai_topic = _esc(story.get("ai_topic") or "")
         title = _esc(story.get("title") or "")
         url = _esc(story.get("url") or "#")
@@ -287,8 +286,6 @@ def generate_html_report(
       <h2><a href="{url}" target="_blank" rel="noopener">{title}</a></h2>
       <p class="takeaway">{takeaway}</p>
       {read_more_html}
-
-      {f'<p class="creator-hook"><span>Reel angle</span>{hook}</p>' if hook else ''}
 
       <details>
         <summary>Source notes</summary>
@@ -522,27 +519,6 @@ def generate_html_report(
       word-break: break-word;
     }}
 
-    .creator-hook {{
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      color: #4a3415;
-      background: #fff7ed;
-      border: 1px solid #fed7aa;
-      border-radius: 6px;
-      padding: 12px 14px;
-      margin-bottom: 14px;
-      font-size: 0.94rem;
-    }}
-
-    .creator-hook span {{
-      display: block;
-      color: var(--amber);
-      font-size: 0.72rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 4px;
-    }}
-
     .eyebrow-pill {{
       border: 1px solid var(--rule);
       border-radius: 999px;
@@ -706,7 +682,6 @@ def generate_text_report(
         url = story.get("url") or ""
         first_pub = format_date_human(_first_published(story))
         brief = _newsletter_brief(story)
-        hook = story.get("hook") or ""
         ai_topic = story.get("ai_topic") or ""
 
         social = story.get("social_fallback")
@@ -739,11 +714,6 @@ def generate_text_report(
                 lines.append(f"  {link_idx}. {link['source']}: {link['url']}")
         else:
             lines.append(f"  1. {_domain(url)}: {url}")
-
-        if hook:
-            lines.append("Creator angle:")
-            for line in textwrap.fill(hook, width=72).split("\n"):
-                lines.append(f"  {line}")
 
         lines.extend([
             "",

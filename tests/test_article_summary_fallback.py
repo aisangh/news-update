@@ -383,7 +383,8 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
         generate_reel_content(story)
 
         self.assertIn("policy", story["caption"])
-        self.assertIn("Policy", story["hook"])
+        self.assertNotIn("hook", story)
+        self.assertIn("coverage", story["caption"].lower())
 
     def test_filter_excludes_press_release_and_classroom_noise(self) -> None:
         stories = [

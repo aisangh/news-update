@@ -1,6 +1,6 @@
 {
   "id": "aisangh/ai-news-finder-daily",
-  "title": "AI News Finder Daily Run",
+  "title": "AI News Finder Daily",
   "code_file": "notebook.ipynb",
   "language": "python",
   "kernel_type": "notebook",

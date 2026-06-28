@@ -75,8 +75,8 @@ What to do:
 1. Replace `YOUR_KAGGLE_USERNAME` in [my-kaggle-notebook/kernel-metadata.json](./my-kaggle-notebook/kernel-metadata.json) with your Kaggle username.
 2. Create Kaggle API credentials at Kaggle Settings -> API and download `kaggle.json`.
 3. Add these GitHub repository secrets:
-   - `KAGGLE_USERNAME`
-   - `KAGGLE_KEY`
+   - Preferred: `KAGGLE_API_TOKEN`
+   - Or legacy pair: `KAGGLE_USERNAME` and `KAGGLE_KEY`
 4. Make sure the Kaggle notebook accelerator is set to GPU in Kaggle. Kaggle controls the exact GPU flavor in the notebook settings.
 5. Let GitHub Actions push the notebook daily at 04:30 UTC, which is 10:00 AM IST.
 

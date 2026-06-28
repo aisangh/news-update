@@ -2,8 +2,8 @@ name: Run Kaggle Notebook
 
 on:
   schedule:
-    # 10:00 AM IST = 04:30 UTC
-    - cron: '30 4 * * *'
+    # 03:00 PM IST = 10:00 UTC = 06:00 AM EDT / 03:00 AM PDT (US early morning)
+    - cron: '0 10 * * *'
   workflow_dispatch:
 
 concurrency:

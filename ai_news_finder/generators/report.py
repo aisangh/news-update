@@ -33,7 +33,7 @@ def format_date_human(raw: str | None) -> str:
 
 def _story_summary(story: dict) -> str:
     raw = story.get("detailed_summary") or ""
-    if not raw and not _read_more_links(story):
+    if not raw:
         raw = _best_summary_candidate(story)
     if raw:
         clean = _clean_summary_text(raw)
@@ -46,8 +46,26 @@ def _story_summary(story: dict) -> str:
 
 
 def _generate_fallback_summary(story: dict) -> str:
-    """Generate a summary from title and sources when article extraction fails."""
-    return "No summary available for this story."
+    """Generate a readable fallback summary when article extraction fails."""
+    title = _clean_summary_text(story.get("title") or "")
+    topic = (story.get("ai_topic") or "").strip().lower()
+    sources = story.get("sources") or []
+    source_count = int(story.get("source_count", len(sources)) or len(sources) or 0)
+    source_line = ", ".join(sources[:3]) if sources else _domain(story.get("url") or "")
+    if len(sources) > 3:
+        source_line += f" + {len(sources) - 3} more"
+
+    if title:
+        topic_prefix = f"{topic.title()}: " if topic else ""
+        if source_count >= 3:
+            confidence = "The multi-source coverage suggests this is a meaningful AI development, not just a passing mention."
+        elif source_count == 2:
+            confidence = "It has enough cross-coverage to deserve a close look."
+        else:
+            confidence = "It is worth watching because it may be an early signal before wider coverage appears."
+        return f"{topic_prefix}{title}. {confidence} Current coverage includes {source_line}."
+
+    return "No readable article summary was available, but the source list and headline still indicate a relevant AI story."
 
 
 def _clean_summary_text(raw: str) -> str:
@@ -168,7 +186,7 @@ def _newsletter_brief(story: dict) -> dict[str, str]:
     social = story.get("social_fallback")
 
     if summary == "No summary available for this story.":
-        summary = f"No detailed article summary could be extracted for: {title}"
+        summary = _generate_fallback_summary(story)
 
     if social == "reddit":
         why = "Why it matters: Reddit traction is an early signal that builders and AI-watchers are already debating the practical impact."

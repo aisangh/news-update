@@ -29,7 +29,8 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
 
         summary = _story_summary(story)
 
-        self.assertEqual(summary, "No summary available for this story.")
+        self.assertIn("Android Authority", summary)
+        self.assertNotIn("No summary available", summary)
 
     def test_report_uses_detailed_summary_when_read_more_links_exist(self) -> None:
         story = {
@@ -275,7 +276,7 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
             rss.enrich_story_summaries([story])
 
         self.assertNotIn("detailed_summary", story)
-        self.assertEqual(_story_summary(story), "No summary available for this story.")
+        self.assertNotIn("No summary available", _story_summary(story))
 
     def test_filter_excludes_stock_market_ai_noise(self) -> None:
         stories = [

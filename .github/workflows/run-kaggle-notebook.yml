@@ -162,7 +162,7 @@ jobs:
           kernel_id = metadata["id"]
           output_dir = pathlib.Path("kaggle-output")
           report_files = sorted(
-              list(output_dir.rglob("*.txt")) + list(output_dir.rglob("*.html")),
+              list(list(output_dir.rglob("*.html")),
               key=lambda path: path.stat().st_mtime,
               reverse=True,
           )

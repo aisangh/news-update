@@ -14,6 +14,7 @@ def main() -> int:
     if not MAIN.is_file():
         print(f"Error: missing {MAIN}", file=sys.stderr)
         return 1
+
     result = subprocess.run(
         [sys.executable, str(MAIN), *sys.argv[1:]],
         cwd=str(PKG),

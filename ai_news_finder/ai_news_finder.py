@@ -19,7 +19,8 @@ from generators.report import export_json, format_date_human, _first_published, 
 from processors import filter_ai_stories, group_stories, select_top_stories
 
 _pkg_dir = Path(__file__).resolve().parent
-load_dotenv(_pkg_dir / ".env")
+if (_pkg_dir / ".env").is_file():
+    load_dotenv(_pkg_dir / ".env")
 
 if sys.platform == "win32":
     for stream in (sys.stdout, sys.stderr):
@@ -36,6 +37,23 @@ logger = logging.getLogger(__name__)
 
 def _pad(msg: str, width: int = 36) -> str:
     return msg.ljust(width)
+
+
+def _running_in_kaggle() -> bool:
+    return bool(
+        os.getenv("KAGGLE_KERNEL_RUN_TYPE")
+        or os.getenv("KAGGLE_URL_BASE")
+        or Path("/kaggle/working").exists()
+    )
+
+
+def _default_reports_dir() -> Path:
+    custom_dir = os.getenv("AI_NEWS_REPORTS_DIR")
+    if custom_dir:
+        return Path(custom_dir).expanduser()
+    if _running_in_kaggle():
+        return Path("/kaggle/working/reports")
+    return _pkg_dir.parent / "reports"
 
 
 def main() -> int:
@@ -66,6 +84,15 @@ def main() -> int:
         dest="export_json",
         help="Also export a JSON file alongside the HTML",
     )
+    parser.add_argument(
+        "--reports-dir",
+        type=str,
+        default=None,
+        help=(
+            "Directory for generated reports. Defaults to AI_NEWS_REPORTS_DIR, "
+            "then /kaggle/working/reports on Kaggle, otherwise ./reports"
+        ),
+    )
     args = parser.parse_args()
 
     if args.days < 1:
@@ -79,8 +106,9 @@ def main() -> int:
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=args.days)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    reports_dir = Path(__file__).resolve().parent.parent / "reports"
+    reports_dir = Path(args.reports_dir).expanduser() if args.reports_dir else _default_reports_dir()
     reports_dir.mkdir(parents=True, exist_ok=True)
+    print(f"📁 Reports directory: {reports_dir}")
 
     output_file = args.output or f"report_{today}.html"
     output_path = Path(output_file)
@@ -200,8 +228,8 @@ def main() -> int:
         print(f"    Hook: {hook}")
         print()
 
-    print(f"📄 HTML report: reports/{output_path.name}")
-    print(f"📄 Text report:  reports/{text_path.name}")
+    print(f"📄 HTML report: {output_path}")
+    print(f"📄 Text report:  {text_path}")
 
     # Send the HTML report file to Discord
     if output_path.exists():

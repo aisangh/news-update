@@ -19,6 +19,24 @@ python run.py --days 2
 
 Works on Windows, macOS, and Linux.
 
+### Kaggle Notebook
+
+To run the GitHub code inside a Kaggle notebook and save outputs in Kaggle's
+working storage:
+
+```python
+!git clone https://github.com/aisangh/news-update.git
+%cd news-update
+!pip install -r requirements.txt
+!python kaggle/launch.py --days 2
+```
+
+You can also direct reports somewhere else in Kaggle:
+
+```python
+!python kaggle/launch.py --days 2 --reports-dir /kaggle/working/reports
+```
+
 ```bash
 python run.py --days 1
 python run.py --days 3 --json
@@ -32,6 +50,9 @@ Reports are saved to **`reports/`**:
 
 - `report_YYYY-MM-DD.html`
 - `report_YYYY-MM-DD.txt`
+
+On Kaggle, the default output directory is `/kaggle/working/reports` unless you
+set `AI_NEWS_REPORTS_DIR` or pass `--reports-dir`.
 
 ## Layout
 

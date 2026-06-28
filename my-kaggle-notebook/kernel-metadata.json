@@ -1,0 +1,14 @@
+{
+  "id": "aisangh/ai-news-finder-daily",
+  "title": "AI News Finder Daily Run",
+  "code_file": "notebook.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_tpu": false,
+  "enable_internet": true,
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": []
+}

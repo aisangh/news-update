@@ -21,23 +21,19 @@ Works on Windows, macOS, and Linux.
 
 ### Kaggle Notebook
 
-To run the GitHub code inside a Kaggle notebook and save outputs in Kaggle's
-working storage:
+The cleanest Kaggle setup is the ready-made notebook scaffold in
+[`my-kaggle-notebook/`](./my-kaggle-notebook/). It clones this repo, installs
+the dependencies, and runs the pipeline inside Kaggle.
+
+If you want to run it manually in a Kaggle notebook cell, use:
 
 ```python
-!git clone https://github.com/aisangh/news-update.git
-%cd news-update
-!pip install -r requirements.txt
-!pip install sentence-transformers
-!pip install transformers accelerate sentencepiece
-%env AI_NEWS_USE_SUMMARY_MODEL=1
-%env AI_NEWS_SUMMARY_MODEL=Qwen/Qwen2.5-1.5B-Instruct
-!python kaggle/launch.py --days 2
-```
+import os
 
-You can also direct reports somewhere else in Kaggle:
+os.environ["AI_NEWS_USE_HF"] = "1"
+os.environ["AI_NEWS_USE_SUMMARY_MODEL"] = "1"
+os.environ["AI_NEWS_SUMMARY_MODEL"] = "Qwen/Qwen2.5-1.5B-Instruct"
 
-```python
 !python kaggle/launch.py --days 2 --reports-dir /kaggle/working/reports
 ```
 
@@ -68,12 +64,36 @@ will also use a local Qwen-style summarizer to rewrite the extracted article
 text into cleaner newsletter copy. This is the fastest way to get the issue
 closer to a polished 10/10 on Kaggle.
 
+### GitHub Actions -> Kaggle Notebook
+
+If you want GitHub Actions to trigger the Kaggle notebook automatically every
+day, use the `my-kaggle-notebook/` scaffold plus the workflow in
+`.github/workflows/run-kaggle-notebook.yml`.
+
+What to do:
+
+1. Replace `YOUR_KAGGLE_USERNAME` in [my-kaggle-notebook/kernel-metadata.json](./my-kaggle-notebook/kernel-metadata.json) with your Kaggle username.
+2. Create Kaggle API credentials at Kaggle Settings -> API and download `kaggle.json`.
+3. Add these GitHub repository secrets:
+   - `KAGGLE_USERNAME`
+   - `KAGGLE_KEY`
+4. Make sure the Kaggle notebook accelerator is set to GPU in Kaggle. Kaggle controls the exact GPU flavor in the notebook settings.
+5. Let GitHub Actions push the notebook daily at 04:30 UTC, which is 10:00 AM IST.
+
+The notebook itself clones this repo, installs dependencies, and runs the
+pipeline on Kaggle with the configured accelerator.
+
+If you use the Kaggle workflow, consider disabling the direct-run schedules in
+`.github/workflows/daily-run.yml` and `.github/workflows/weekly-run.yml` to
+avoid duplicate runs.
+
 ## Layout
 
 ```
 news-update/
 ├── run.py              # start here
 ├── README.md
+├── my-kaggle-notebook/
 ├── reports/
 └── ai_news_finder/     # all application code
 ```

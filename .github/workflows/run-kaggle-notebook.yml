@@ -133,7 +133,7 @@ jobs:
           )
 
           report_files = sorted(
-              list(output_dir.rglob("*.txt")) + list(output_dir.rglob("*.html")),
+              list(output_dir.rglob("*.html")),
               key=lambda path: path.stat().st_mtime,
               reverse=True,
           )

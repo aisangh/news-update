@@ -42,6 +42,38 @@ AI_KEYWORDS = [
     "runway ml",
 ]
 
+FINANCE_EXCLUSION_KEYWORDS = [
+    "stock",
+    "stocks",
+    "share price",
+    "shares",
+    "market cap",
+    "nasdaq",
+    "nyse",
+    "wall street",
+    "earnings",
+    "revenue",
+    "guidance",
+    "trading",
+    "trader",
+    "traders",
+    "investor",
+    "investors",
+    "investment",
+    "investments",
+    "analyst",
+    "analysts",
+    "ipo",
+    "dividend",
+    "bullish",
+    "bearish",
+    "hedge fund",
+    "portfolio",
+    "valuation",
+    "quarter",
+    "quarterly",
+]
+
 EXCLUSION_KEYWORDS = [
     "horoscope",
     "zodiac",
@@ -56,6 +88,10 @@ EXCLUSION_KEYWORDS = [
 ]
 
 
+def _contains_any(text: str, keywords: list[str]) -> bool:
+    return any(kw in text for kw in keywords)
+
+
 def _story_text(story: dict) -> str:
     title = story.get("title") or ""
     summary = story.get("summary") or ""
@@ -68,9 +104,12 @@ def filter_ai_stories(stories: list[dict]) -> list[dict]:
     for story in stories:
         text = _story_text(story)
 
-        if any(excl in text for excl in EXCLUSION_KEYWORDS):
+        if _contains_any(text, EXCLUSION_KEYWORDS):
             continue
 
-        if any(kw in text for kw in AI_KEYWORDS):
+        if _contains_any(text, FINANCE_EXCLUSION_KEYWORDS):
+            continue
+
+        if _contains_any(text, AI_KEYWORDS):
             filtered.append(story)
     return filtered

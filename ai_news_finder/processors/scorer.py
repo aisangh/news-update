@@ -26,6 +26,30 @@ def _story_urls(story: dict) -> set[str]:
     return {u for u in [story.get("url") or "", *(story.get("all_urls") or [])] if u}
 
 
+def _story_quality_score(story: dict) -> int:
+    """Prefer stories with stronger sourcing and richer context."""
+    source_count = int(story.get("source_count", 0) or 0)
+    source_count = max(source_count, len([s for s in (story.get("sources") or []) if s]))
+    summary = story.get("detailed_summary") or story.get("summary") or ""
+    summary_words = len(summary.split())
+    title_count = len([t for t in (story.get("all_titles") or []) if t])
+    summary_count = len([s for s in (story.get("all_summaries") or []) if s])
+    score = 0
+    score += source_count * 120
+    score += min(summary_words, 160)
+    score += min(title_count, 8) * 8
+    score += min(summary_count, 8) * 6
+    if story.get("detailed_summary"):
+        score += 40
+    if story.get("read_more_links"):
+        score += 25
+    if not story.get("social_fallback"):
+        score += 15
+    if story.get("url") and not str(story.get("url")).startswith("https://news.google.com"):
+        score += 10
+    return score
+
+
 def _is_duplicate_story(candidate: dict, selected: list[dict]) -> bool:
     candidate_urls = _story_urls(candidate)
     for existing in selected:
@@ -57,7 +81,7 @@ def select_top_stories(
     reddit_stories = reddit_stories or []
 
     primary = [g for g in groups if g.get("source_count", 0) >= 3]
-    primary.sort(key=lambda g: g["source_count"], reverse=True)
+    primary.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
     selected: list[dict] = []
     for item in primary:
         _append_unique_story(selected, item)
@@ -67,7 +91,7 @@ def select_top_stories(
     secondary_added = 0
     if len(selected) < limit:
         secondary = [g for g in groups if g.get("source_count", 0) < 3]
-        secondary.sort(key=lambda g: g["source_count"], reverse=True)
+        secondary.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
         for g in secondary:
             if _append_unique_story(selected, g):
                 secondary_added += 1

@@ -47,17 +47,7 @@ def _story_summary(story: dict) -> str:
 
 def _generate_fallback_summary(story: dict) -> str:
     """Generate a summary from title and sources when article extraction fails."""
-    title = story.get("title") or ""
-    sources = story.get("sources") or []
-    sc = story.get("source_count", 1)
-
-    if sources:
-        source_str = sources[0]
-        if len(sources) > 1:
-            source_str += f" and {len(sources) - 1} other source{'s' if len(sources) > 2 else ''}"
-        return f"Reported by {source_str}: {title}"
-
-    return f"Story: {title}"
+    return "No summary available for this story."
 
 
 def _clean_summary_text(raw: str) -> str:

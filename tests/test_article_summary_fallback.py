@@ -4,6 +4,8 @@ from unittest.mock import patch
 from ai_news_finder.collectors import rss
 from ai_news_finder.generators.report import _newsletter_brief, _story_summary
 from ai_news_finder.processors.dedup import group_stories
+from ai_news_finder.processors.filter import filter_ai_stories
+from ai_news_finder.processors.scorer import select_top_stories
 
 
 class ArticleSummaryFallbackTests(unittest.TestCase):
@@ -269,6 +271,63 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
 
         self.assertNotIn("detailed_summary", story)
         self.assertEqual(_story_summary(story), "No summary available for this story.")
+
+    def test_filter_excludes_stock_market_ai_noise(self) -> None:
+        stories = [
+            {
+                "title": "OpenAI stock jumps after earnings beat and analyst upgrade",
+                "summary": "The stock gained after investors reacted to quarterly revenue and guidance.",
+            },
+            {
+                "title": "OpenAI launches a new reasoning model for developers",
+                "summary": "The company shipped a new model with stronger coding and agentic workflows.",
+            },
+        ]
+
+        filtered = filter_ai_stories(stories)
+
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0]["title"], "OpenAI launches a new reasoning model for developers")
+
+    def test_select_top_stories_prefers_richer_story_when_sources_match(self) -> None:
+        groups = [
+            {
+                "title": "OpenAI model release",
+                "url": "https://example.com/ai-model",
+                "sources": ["TechCrunch", "The Verge", "Wired"],
+                "source_count": 3,
+                "summary": "OpenAI released a new model.",
+                "all_titles": ["OpenAI model release"],
+                "all_summaries": ["OpenAI released a new model."],
+                "all_urls": ["https://example.com/ai-model"],
+            },
+            {
+                "title": "OpenAI model release",
+                "url": "https://example.com/ai-model-detailed",
+                "sources": ["TechCrunch", "The Verge", "Wired"],
+                "source_count": 3,
+                "summary": (
+                    "OpenAI released a new model that improves coding, reasoning, and "
+                    "tool use across agent workflows."
+                ),
+                "detailed_summary": (
+                    "OpenAI released a new model that improves coding, reasoning, and "
+                    "tool use across agent workflows. The launch adds stronger planning "
+                    "behavior, better instruction following, and more reliable output for "
+                    "developers building AI products."
+                ),
+                "all_titles": ["OpenAI model release"],
+                "all_summaries": [
+                    "OpenAI released a new model that improves coding, reasoning, and tool use across agent workflows.",
+                ],
+                "all_urls": ["https://example.com/ai-model-detailed"],
+                "read_more_links": [{"url": "https://example.com/ai-model-detailed"}],
+            },
+        ]
+
+        selected, _stats = select_top_stories(groups, limit=1)
+
+        self.assertEqual(selected[0]["url"], "https://example.com/ai-model-detailed")
 
 
 if __name__ == "__main__":

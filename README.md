@@ -55,8 +55,10 @@ Reports are saved to **`reports/`**:
 On Kaggle, the default output directory is `/kaggle/working/reports` unless you
 set `AI_NEWS_REPORTS_DIR` or pass `--reports-dir`.
 
-If `sentence-transformers` is installed, the notebook will also use a small
-Hugging Face embedding model to rerank the shortlist and label the stories.
+If `sentence-transformers` is installed, the notebook will use a stronger
+Hugging Face embedding model, `sentence-transformers/all-mpnet-base-v2`, to
+rerank the shortlist and label the stories. The terminal output also prints
+more stage-by-stage progress so you can see the pipeline moving.
 
 ## Layout
 

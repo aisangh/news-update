@@ -611,11 +611,19 @@ def _read_more_links(story: dict, limit: int = 10) -> list[dict[str, str]]:
     return links
 
 
-def enrich_story_summaries(stories: list[dict]) -> None:
+def enrich_story_summaries(
+    stories: list[dict],
+    progress: Any | None = None,
+) -> None:
     """Improve selected stories with richer summaries and read-further links."""
     for idx, story in enumerate(stories, 1):
         title = story.get("title") or ""
         original_summary = story.get("summary") or ""
+        if callable(progress):
+            try:
+                progress(idx, len(stories), story, "starting")
+            except Exception:
+                pass
         story["read_more_links"] = _read_more_links(story, limit=10)
         article_texts: list[str] = []
         detail_texts: list[str] = []
@@ -669,6 +677,13 @@ def enrich_story_summaries(stories: list[dict]) -> None:
                 story["detailed_summary"] = fetched
                 if fetched not in summaries:
                     summaries.append(fetched)
+
+        if callable(progress):
+            try:
+                status = "enriched" if story.get("detailed_summary") else "kept original"
+                progress(idx, len(stories), story, status)
+            except Exception:
+                pass
 
 
 def _entry_summary(entry: Any) -> str:
@@ -965,20 +980,51 @@ def _parse_feed(source_name: str, feed_url: str, cutoff: datetime) -> list[dict]
     return stories
 
 
-def collect_rss(cutoff: datetime) -> list[dict]:
+def collect_rss(cutoff: datetime, progress: Any | None = None) -> list[dict]:
     """Pull stories from configured RSS feeds within the date window."""
     stories: list[dict] = []
 
+    total_feeds = len(FEEDS) + len(GOOGLE_NEWS_QUERIES)
+    current = 0
+
     for source_name, feed_url in FEEDS:
+        current += 1
         try:
+            if callable(progress):
+                try:
+                    progress(f"    [{current}/{total_feeds}] Fetching {source_name}")
+                except Exception:
+                    pass
+            before = len(stories)
             stories.extend(_parse_feed(source_name, feed_url, cutoff))
+            if callable(progress):
+                try:
+                    progress(
+                        f"    [{current}/{total_feeds}] {source_name}: +{len(stories) - before} stories"
+                    )
+                except Exception:
+                    pass
         except Exception as exc:
             logger.warning("RSS feed failed (%s): %s", source_name, exc)
 
     google_labels = ("Google News AI", "Google News LLM", "Google News OpenAI")
     for label, query in zip(google_labels, GOOGLE_NEWS_QUERIES):
+        current += 1
         try:
+            if callable(progress):
+                try:
+                    progress(f"    [{current}/{total_feeds}] Fetching {label}")
+                except Exception:
+                    pass
+            before = len(stories)
             stories.extend(_parse_feed(label, _google_news_url(query), cutoff))
+            if callable(progress):
+                try:
+                    progress(
+                        f"    [{current}/{total_feeds}] {label}: +{len(stories) - before} stories"
+                    )
+                except Exception:
+                    pass
         except Exception as exc:
             logger.warning("Google News RSS failed (%s): %s", query, exc)
 

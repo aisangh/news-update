@@ -67,7 +67,7 @@ def _cosine(a: list[float], b: list[float]) -> float:
 class HFStoryRanker:
     model_name: str = field(default_factory=lambda: os.getenv(
         "AI_NEWS_HF_MODEL",
-        "sentence-transformers/all-MiniLM-L6-v2",
+        "sentence-transformers/all-mpnet-base-v2",
     ))
     _model: Any | None = field(default=None, init=False, repr=False)
     _profile_embeddings: dict[str, list[float]] = field(default_factory=dict, init=False, repr=False)

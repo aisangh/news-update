@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import sys
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -37,6 +38,18 @@ logger = logging.getLogger(__name__)
 
 def _pad(msg: str, width: int = 36) -> str:
     return msg.ljust(width)
+
+
+def _stage(msg: str, detail: str = "") -> None:
+    line = _pad(msg)
+    print(f"{line} {detail}" if detail else line)
+
+
+def _preview_titles(stories: list[dict], limit: int = 3) -> str:
+    titles = [str(s.get("title") or "").strip() for s in stories[:limit] if s.get("title")]
+    if not titles:
+        return ""
+    return " | ".join(titles)
 
 
 def _running_in_kaggle() -> bool:
@@ -126,10 +139,24 @@ def main() -> int:
 
     print("Running AI News Finder...")
 
+    hf_model = os.getenv("AI_NEWS_HF_MODEL", "sentence-transformers/all-mpnet-base-v2")
+    hf_enabled = os.getenv("AI_NEWS_USE_HF", "auto")
+    print(f"🧠 AI ranking model: {hf_model} (AI_NEWS_USE_HF={hf_enabled})")
+
     # Layer 1: collection
-    rss_stories = collect_rss(cutoff)
+    _stage("📡 Collecting RSS feeds...")
+    def _rss_progress(message: str) -> None:
+        print(message)
+
+    rss_stories = collect_rss(cutoff, progress=_rss_progress)
     rss_ai = filter_ai_stories(rss_stories)
-    print(f"{_pad('📡 Collecting from RSS feeds...')} {len(rss_ai)} AI stories found")
+    rss_sources = Counter((story.get("source") or "Unknown") for story in rss_ai)
+    print(f"    Found {len(rss_ai)} AI stories across {len(rss_sources)} sources")
+    if rss_sources:
+        top_sources = ", ".join(f"{src} ({count})" for src, count in rss_sources.most_common(5))
+        print(f"    Top feeds: {top_sources}")
+    if rss_ai:
+        print(f"    Samples: {_preview_titles(rss_ai)}")
 
     all_raw = rss_ai
     if not all_raw:
@@ -148,22 +175,32 @@ def main() -> int:
     total_scanned = len(all_raw)
 
     # Layer 3: dedup
-    print(_pad("🔄 Deduplicating & grouping..."), end="", flush=True)
+    _stage("🔄 Deduplicating & grouping...")
     groups = group_stories(all_raw)
-    print(f" {len(groups)} unique story groups")
+    print(f"    Grouped into {len(groups)} unique story clusters")
+    if groups:
+        strongest = sorted(groups, key=lambda g: g.get("source_count", 0), reverse=True)[:5]
+        for item in strongest:
+            print(f"    • [{item.get('source_count', 0)} sources] {item.get('title') or ''}")
 
     # Layer 4: selection (may need Reddit fill)
     primary_pool = [g for g in groups if g.get("source_count", 0) >= 3]
-    print(_pad("✅ Primary pool (3+ sources):"), f" {len(primary_pool)} stories")
+    _stage("✅ Primary pool (3+ sources):", f"{len(primary_pool)} stories")
+    if primary_pool:
+        print(f"    Best matches: {_preview_titles(primary_pool)}")
 
     reddit_stories: list[dict] = []
     if len(primary_pool) < 10:
-        print(_pad("📱 Filling from Reddit..."), end="", flush=True)
+        _stage("📱 Checking Reddit fallback...")
         reddit_raw = collect_reddit()
         reddit_stories = filter_ai_stories(reddit_raw) if reddit_raw else []
         if not reddit_stories and reddit_raw:
             reddit_stories = reddit_raw
-        print(f" {len(reddit_stories)} trending AI posts")
+        print(f"    Reddit fallback returned {len(reddit_stories)} posts")
+        if reddit_stories:
+            print(f"    Samples: {_preview_titles(reddit_stories)}")
+    else:
+        print("    Reddit fallback skipped because the primary pool already covers the shortlist.")
 
     if len(primary_pool) == 0:
         print(
@@ -171,7 +208,15 @@ def main() -> int:
         )
 
     selected, stats = select_top_stories(groups, reddit_stories, limit=args.limit)
-    print(_pad("📊 Final selection:"), f" {len(selected)} stories")
+    _stage("📊 Final selection:", f"{len(selected)} stories")
+    print(
+        "    Breakdown: "
+        f"{stats['primary_count']} primary, "
+        f"{stats['secondary_added']} secondary, "
+        f"{stats['reddit_added']} Reddit"
+    )
+    if selected:
+        print(f"    Final picks: {_preview_titles(selected, limit=min(5, len(selected)))}")
 
     if not selected:
         print("\nNo AI stories matched your criteria. Try increasing --days.", file=sys.stderr)
@@ -184,9 +229,19 @@ def main() -> int:
 
     # Layer 5: reel content
     if _should_enrich_stories():
-        enrich_story_summaries(selected)
+        print("🧠 Enriching selected stories with article details...")
+
+        def _enrich_progress(idx: int, total: int, story: dict, status: str) -> None:
+            title = str(story.get("title") or "").strip()
+            print(f"    [{idx}/{total}] {status}: {title}")
+
+        enrich_story_summaries(selected, progress=_enrich_progress)
+    else:
+        print("🧠 Skipping article enrichment in Kaggle for speed.")
+
     for story in selected:
         generate_reel_content(story)
+    print("✍️ Generated reel hooks, captions, and cover text.")
 
     # Sources used
     sources_used: list[str] = []
@@ -211,6 +266,7 @@ def main() -> int:
     )
     generate_html_report(selected, output_path=str(output_path), **report_kwargs)
     generate_text_report(selected, output_path=str(text_path), **report_kwargs)
+    print("🧾 Reports rendered.")
 
     if args.export_json:
         json_path = output_path.with_suffix(".json")

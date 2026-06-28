@@ -182,3 +182,42 @@ jobs:
           response.raise_for_status()
           print("Discord notification sent.")
           PY
+
+      - name: Delete Kaggle notebook
+        if: always()
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import json
+          import pathlib
+          import requests
+
+          username = os.environ.get("KAGGLE_USERNAME")
+          key = os.environ.get("KAGGLE_KEY")
+
+          if not username or not key:
+              print("KAGGLE_USERNAME/KAGGLE_KEY not set. Skipping deletion.")
+              raise SystemExit(0)
+
+          metadata = json.loads(pathlib.Path("my-kaggle-notebook/kernel-metadata.json").read_text())
+          kernel_id = metadata["id"]
+
+          print(f"Deleting Kaggle kernel: {kernel_id}")
+
+          response = requests.delete(
+              f"https://www.kaggle.com/api/v1/kernels/{kernel_id}",
+              auth=(username, key),
+              timeout=30,
+          )
+
+          if response.status_code == 200:
+              print(f"Successfully deleted kernel: {kernel_id}")
+          elif response.status_code == 404:
+              print(f"Kernel not found (already deleted?): {kernel_id}")
+          else:
+              print(f"Failed to delete kernel: {response.status_code} — {response.text}")
+              raise SystemExit(1)
+          PY

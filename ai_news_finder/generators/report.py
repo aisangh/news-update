@@ -252,6 +252,7 @@ def generate_html_report(
         why = _esc(brief["why"])
         source_line = _esc(brief["source_line"])
         hook = _esc(story.get("hook") or "")
+        ai_topic = _esc(story.get("ai_topic") or "")
         title = _esc(story.get("title") or "")
         url = _esc(story.get("url") or "#")
         sources = story.get("sources") or []
@@ -275,6 +276,7 @@ def generate_html_report(
         <summary>Source notes</summary>
         <div class="metadata">
           <p><strong>First published:</strong> {first_pub_display}</p>
+          {f'<p><strong>AI focus:</strong> {ai_topic.title()}</p>' if ai_topic else ''}
           <p><strong>Coverage:</strong> {source_line}</p>
           <div class="chips">
             {''.join(f'<span class="chip">{_esc(s)}</span>' for s in sources)}
@@ -687,6 +689,7 @@ def generate_text_report(
         first_pub = format_date_human(_first_published(story))
         brief = _newsletter_brief(story)
         hook = story.get("hook") or ""
+        ai_topic = story.get("ai_topic") or ""
 
         social = story.get("social_fallback")
         is_reddit = social == "reddit"
@@ -699,6 +702,10 @@ def generate_text_report(
             "",
             "What happened:",
         ])
+
+        if ai_topic:
+            lines.append(f"AI focus: {ai_topic.title()}")
+            lines.append("")
 
         for line in textwrap.fill(brief["takeaway"], width=72).split("\n"):
             lines.append(f"  {line}")

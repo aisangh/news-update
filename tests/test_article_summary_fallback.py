@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from ai_news_finder.collectors import rss
+from ai_news_finder.generators.reel import generate_reel_content
 from ai_news_finder.generators.report import _newsletter_brief, _story_summary
 from ai_news_finder.processors.dedup import group_stories
 from ai_news_finder.processors.filter import filter_ai_stories
@@ -332,6 +333,56 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
         selected, _stats = select_top_stories(groups, limit=1)
 
         self.assertEqual(selected[0]["url"], "https://example.com/ai-model-detailed")
+
+    def test_select_top_stories_uses_ai_ranker_when_available(self) -> None:
+        groups = [
+            {
+                "title": "OpenAI release with broad impact",
+                "url": "https://example.com/openai",
+                "sources": ["Reuters", "TechCrunch", "The Verge"],
+                "source_count": 3,
+                "summary": "OpenAI released a broad-impact model update.",
+                "all_titles": ["OpenAI release with broad impact"],
+                "all_summaries": ["OpenAI released a broad-impact model update."],
+                "all_urls": ["https://example.com/openai"],
+            },
+            {
+                "title": "Google release with broad impact",
+                "url": "https://example.com/google",
+                "sources": ["Reuters", "TechCrunch", "The Verge"],
+                "source_count": 3,
+                "summary": "Google released a broad-impact model update.",
+                "all_titles": ["Google release with broad impact"],
+                "all_summaries": ["Google released a broad-impact model update."],
+                "all_urls": ["https://example.com/google"],
+            },
+        ]
+
+        class Ranker:
+            def story_score(self, story: dict) -> float:
+                return 0.9 if "google" in (story.get("title") or "").lower() else 0.1
+
+            def annotate(self, stories: list[dict]) -> None:
+                for story in stories:
+                    story["ai_topic"] = "policy"
+
+        selected, _stats = select_top_stories(groups, limit=1, ai_ranker=Ranker())
+
+        self.assertEqual(selected[0]["title"], "Google release with broad impact")
+        self.assertEqual(selected[0]["ai_topic"], "policy")
+
+    def test_generate_reel_content_uses_ai_topic(self) -> None:
+        story = {
+            "title": "OpenAI ships a new update",
+            "summary": "OpenAI ships a major update for developers.",
+            "sources": ["Reuters", "TechCrunch"],
+            "ai_topic": "policy",
+        }
+
+        generate_reel_content(story)
+
+        self.assertIn("policy", story["caption"])
+        self.assertIn("Policy", story["hook"])
 
     def test_filter_excludes_press_release_and_classroom_noise(self) -> None:
         stories = [

@@ -4,6 +4,14 @@ from __future__ import annotations
 
 from .dedup import _title_similarity
 
+try:
+    from ai_news_finder.hf_ranker import get_hf_ranker
+except Exception:
+    try:
+        from hf_ranker import get_hf_ranker
+    except Exception:  # pragma: no cover - optional dependency fallback
+        get_hf_ranker = lambda: None  # type: ignore[assignment]
+
 TOP_N = 10
 DUPLICATE_THRESHOLD = 0.64
 
@@ -149,19 +157,35 @@ def _append_unique_story(selected: list[dict], candidate: dict) -> bool:
     return True
 
 
+def _combined_story_score(story: dict, ai_ranker: object | None = None) -> float:
+    base = float(_story_quality_score(story))
+    if ai_ranker is None:
+        return base
+    story_score = getattr(ai_ranker, "story_score", None)
+    if callable(story_score):
+        try:
+            return base + (float(story_score(story)) * 80.0)
+        except Exception:
+            return base
+    return base
+
+
 def select_top_stories(
     groups: list[dict],
     reddit_stories: list[dict] | None = None,
     limit: int = TOP_N,
+    ai_ranker: object | None = None,
 ) -> tuple[list[dict], dict]:
     """
     Select up to limit stories using 3-step logic.
     Returns (selected_stories, stats_dict).
     """
     reddit_stories = reddit_stories or []
+    if ai_ranker is None:
+        ai_ranker = get_hf_ranker()
 
     primary = [g for g in groups if g.get("source_count", 0) >= 3]
-    primary.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
+    primary.sort(key=lambda g: (_combined_story_score(g, ai_ranker), g.get("source_count", 0)), reverse=True)
     selected: list[dict] = []
     for item in primary:
         _append_unique_story(selected, item)
@@ -171,7 +195,7 @@ def select_top_stories(
     secondary_added = 0
     if len(selected) < limit:
         secondary = [g for g in groups if g.get("source_count", 0) < 3]
-        secondary.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
+        secondary.sort(key=lambda g: (_combined_story_score(g, ai_ranker), g.get("source_count", 0)), reverse=True)
         for g in secondary:
             if _append_unique_story(selected, g):
                 secondary_added += 1
@@ -203,6 +227,14 @@ def select_top_stories(
 
     for i, item in enumerate(selected):
         item["rank"] = i + 1
+
+    if ai_ranker is not None:
+        annotate = getattr(ai_ranker, "annotate", None)
+        if callable(annotate):
+            try:
+                annotate(selected)
+            except Exception:
+                pass
 
     stats = {
         "primary_count": min(len(primary), limit),

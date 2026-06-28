@@ -57,13 +57,31 @@ def _extract_topic(title: str) -> str:
     return _title_short(title, 40)
 
 
+def _story_topic(story: dict) -> str:
+    topic = (story.get("ai_topic") or "").strip().lower()
+    if topic:
+        mapping = {
+            "general": "AI",
+            "product": "Product",
+            "policy": "Policy",
+            "hardware": "Hardware",
+            "research": "Research",
+            "business": "Business",
+            "consumer": "Consumer AI",
+            "culture": "Culture",
+        }
+        return mapping.get(topic, topic.title())
+    return _extract_topic(story.get("title") or "")
+
+
 def generate_hook(story: dict) -> str:
     title = story.get("title") or "AI news"
     company = extract_company(title)
-    topic = _extract_topic(title)
+    topic = _story_topic(story)
     title_short = _title_short(title)
     source_count = int(story.get("source_count", 1) or 1)
     idx = _seed(title) % 6
+    topic_prefix = f"{topic}: " if story.get("ai_topic") else ""
     coverage_note = (
         "It's showing up across several outlets"
         if source_count >= 3
@@ -73,12 +91,12 @@ def generate_hook(story: dict) -> str:
     )
 
     templates = [
-        f"{company} just {VERBS[_seed(title + 'v') % len(VERBS)]} a move that {IMPACTS[_seed(title + 'i') % len(IMPACTS)]}",
-        f"Today in AI: {title_short}",
-        f"Why {topic} matters this week",
-        f"The {topic} story people are following right now",
-        f"{company} {ACTIONS[_seed(title + 'a') % len(ACTIONS)]} and the context matters",
-        f"{coverage_note}: {title_short}",
+        f"{topic_prefix}{company} just {VERBS[_seed(title + 'v') % len(VERBS)]} a move that {IMPACTS[_seed(title + 'i') % len(IMPACTS)]}",
+        f"{topic_prefix}Today in AI: {title_short}",
+        f"{topic_prefix}Why {topic} matters this week",
+        f"{topic_prefix}The {topic} story people are following right now",
+        f"{topic_prefix}{company} {ACTIONS[_seed(title + 'a') % len(ACTIONS)]} and the context matters",
+        f"{topic_prefix}{coverage_note}: {title_short}",
     ]
     hook = templates[idx]
     words = hook.split()
@@ -91,6 +109,7 @@ def generate_caption(story: dict) -> str:
     title = story.get("title") or ""
     summary = (story.get("summary") or "").strip()
     sources = story.get("sources") or []
+    topic = _story_topic(story)
     source_note = ", ".join(sources[:3]) if sources else "multiple outlets"
 
     if summary:
@@ -100,7 +119,7 @@ def generate_caption(story: dict) -> str:
 
     para1 = f"📰 {what}"
     para2 = (
-        f"This story is getting attention across {source_note} and is worth following "
+        f"This {topic.lower()} story is getting attention across {source_note} and is worth following "
         "if you want the clearest AI updates without the noise."
     )
     para3 = "Why it matters: these are the stories most likely to shape the tools, policies, and products people will actually notice."

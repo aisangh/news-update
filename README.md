@@ -28,6 +28,7 @@ working storage:
 !git clone https://github.com/aisangh/news-update.git
 %cd news-update
 !pip install -r requirements.txt
+!pip install sentence-transformers
 !python kaggle/launch.py --days 2
 ```
 
@@ -53,6 +54,9 @@ Reports are saved to **`reports/`**:
 
 On Kaggle, the default output directory is `/kaggle/working/reports` unless you
 set `AI_NEWS_REPORTS_DIR` or pass `--reports-dir`.
+
+If `sentence-transformers` is installed, the notebook will also use a small
+Hugging Face embedding model to rerank the shortlist and label the stories.
 
 ## Layout
 

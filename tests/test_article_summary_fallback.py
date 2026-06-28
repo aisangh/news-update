@@ -340,9 +340,9 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
                 "url": "https://example.com/openai-1",
                 "sources": ["TechCrunch", "The Verge", "Wired"],
                 "source_count": 3,
-                "summary": "OpenAI released a new model for developers.",
+                "summary": "OpenAI released a new model for developers with stronger tool use and code generation.",
                 "all_titles": ["OpenAI releases new model for developers"],
-                "all_summaries": ["OpenAI released a new model for developers."],
+                "all_summaries": ["OpenAI released a new model for developers with stronger tool use and code generation."],
                 "all_urls": ["https://example.com/openai-1"],
             },
             {
@@ -350,9 +350,9 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
                 "url": "https://example.com/openai-2",
                 "sources": ["Reuters", "The Verge", "BBC"],
                 "source_count": 3,
-                "summary": "OpenAI improved ChatGPT memory and search.",
+                "summary": "OpenAI improved ChatGPT memory and search for everyday users.",
                 "all_titles": ["OpenAI updates ChatGPT memory and search"],
-                "all_summaries": ["OpenAI improved ChatGPT memory and search."],
+                "all_summaries": ["OpenAI improved ChatGPT memory and search for everyday users."],
                 "all_urls": ["https://example.com/openai-2"],
             },
             {
@@ -360,9 +360,9 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
                 "url": "https://example.com/anthropic-1",
                 "sources": ["Reuters", "Fortune", "CNBC"],
                 "source_count": 3,
-                "summary": "Anthropic opened up a new safety feature.",
+                "summary": "Anthropic opened up a new safety feature for enterprise teams.",
                 "all_titles": ["Anthropic opens up a new safety feature"],
-                "all_summaries": ["Anthropic opened up a new safety feature."],
+                "all_summaries": ["Anthropic opened up a new safety feature for enterprise teams."],
                 "all_urls": ["https://example.com/anthropic-1"],
             },
             {
@@ -370,9 +370,9 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
                 "url": "https://example.com/apple-openai",
                 "sources": ["TechCrunch", "Bloomberg.com", "9to5Mac"],
                 "source_count": 3,
-                "summary": "Apple hardware talent is moving to OpenAI.",
+                "summary": "Apple hardware talent is moving to OpenAI's device team.",
                 "all_titles": ["Apple Vision Pro exec is reportedly leaving for OpenAI"],
-                "all_summaries": ["Apple hardware talent is moving to OpenAI."],
+                "all_summaries": ["Apple hardware talent is moving to OpenAI's device team."],
                 "all_urls": ["https://example.com/apple-openai"],
             },
             {
@@ -380,21 +380,127 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
                 "url": "https://example.com/zhipu",
                 "sources": ["CNBC", "AP News"],
                 "source_count": 2,
-                "summary": "Zhipu is closing in on U.S. AI models.",
+                "summary": "Zhipu is closing in on U.S. AI models and driving open-source adoption.",
                 "all_titles": ["China's Zhipu is closing in on top U.S. AI models"],
-                "all_summaries": ["Zhipu is closing in on U.S. AI models."],
+                "all_summaries": ["Zhipu is closing in on U.S. AI models and driving open-source adoption."],
                 "all_urls": ["https://example.com/zhipu"],
             },
         ]
 
         selected, _stats = select_top_stories(groups, limit=4)
 
-        self.assertLessEqual(
-            sum(1 for story in selected if "openai" in story["title"].lower()),
-            2,
-        )
-        self.assertTrue(any("anthropic" in story["title"].lower() for story in selected))
-        self.assertTrue(any("zhipu" in story["title"].lower() for story in selected))
+        self.assertLessEqual(sum(1 for story in selected if "openai" in story["title"].lower()), 3)
+        self.assertGreaterEqual(len({story["title"].split()[0].lower() for story in selected}), 3)
+        self.assertTrue(all(story.get("source_count", 0) >= 3 for story in selected))
+
+    def test_select_top_stories_backfills_to_full_limit(self) -> None:
+        groups = [
+            {
+                "title": "OpenAI launches a new reasoning model",
+                "url": "https://example.com/1",
+                "sources": ["Reuters", "TechCrunch", "The Verge"],
+                "source_count": 3,
+                "summary": "OpenAI launched a reasoning model for developers and enterprises.",
+                "all_titles": ["OpenAI launches a new reasoning model"],
+                "all_summaries": ["OpenAI launched a reasoning model for developers and enterprises."],
+                "all_urls": ["https://example.com/1"],
+            },
+            {
+                "title": "Anthropic opens up a new safety feature",
+                "url": "https://example.com/2",
+                "sources": ["Reuters", "Fortune", "CNBC"],
+                "source_count": 3,
+                "summary": "Anthropic opened a safety feature for enterprise teams.",
+                "all_titles": ["Anthropic opens up a new safety feature"],
+                "all_summaries": ["Anthropic opened a safety feature for enterprise teams."],
+                "all_urls": ["https://example.com/2"],
+            },
+            {
+                "title": "Google adds Gemini updates for consumer apps",
+                "url": "https://example.com/3",
+                "sources": ["Reuters", "BBC", "AP"],
+                "source_count": 3,
+                "summary": "Google updated Gemini across consumer apps and search.",
+                "all_titles": ["Google adds Gemini updates for consumer apps"],
+                "all_summaries": ["Google updated Gemini across consumer apps and search."],
+                "all_urls": ["https://example.com/3"],
+            },
+            {
+                "title": "Apple Vision Pro exec is reportedly leaving for OpenAI",
+                "url": "https://example.com/4",
+                "sources": ["TechCrunch", "Bloomberg.com", "9to5Mac"],
+                "source_count": 3,
+                "summary": "Apple hardware talent is moving to OpenAI's device team.",
+                "all_titles": ["Apple Vision Pro exec is reportedly leaving for OpenAI"],
+                "all_summaries": ["Apple hardware talent is moving to OpenAI's device team."],
+                "all_urls": ["https://example.com/4"],
+            },
+            {
+                "title": "Nvidia reveals a new AI chip roadmap",
+                "url": "https://example.com/5",
+                "sources": ["Reuters", "CNBC", "Bloomberg.com"],
+                "source_count": 3,
+                "summary": "Nvidia outlined a new chip roadmap for AI data centers.",
+                "all_titles": ["Nvidia reveals a new AI chip roadmap"],
+                "all_summaries": ["Nvidia outlined a new chip roadmap for AI data centers."],
+                "all_urls": ["https://example.com/5"],
+            },
+            {
+                "title": "Meta rolls out a new AI assistant",
+                "url": "https://example.com/6",
+                "sources": ["Reuters", "The Verge", "AP"],
+                "source_count": 3,
+                "summary": "Meta rolled out a new AI assistant for messaging apps.",
+                "all_titles": ["Meta rolls out a new AI assistant"],
+                "all_summaries": ["Meta rolled out a new AI assistant for messaging apps."],
+                "all_urls": ["https://example.com/6"],
+            },
+            {
+                "title": "Mistral releases a faster open model",
+                "url": "https://example.com/7",
+                "sources": ["Reuters", "TechCrunch", "BBC"],
+                "source_count": 3,
+                "summary": "Mistral released a faster open model for developers.",
+                "all_titles": ["Mistral releases a faster open model"],
+                "all_summaries": ["Mistral released a faster open model for developers."],
+                "all_urls": ["https://example.com/7"],
+            },
+            {
+                "title": "Cohere wins a major enterprise deal",
+                "url": "https://example.com/8",
+                "sources": ["Reuters", "Fortune", "CNBC"],
+                "source_count": 3,
+                "summary": "Cohere won a major enterprise deal for AI search.",
+                "all_titles": ["Cohere wins a major enterprise deal"],
+                "all_summaries": ["Cohere won a major enterprise deal for AI search."],
+                "all_urls": ["https://example.com/8"],
+            },
+            {
+                "title": "DeepMind publishes a robotics breakthrough",
+                "url": "https://example.com/9",
+                "sources": ["Reuters", "AP", "BBC"],
+                "source_count": 3,
+                "summary": "DeepMind published a robotics breakthrough for dexterous tasks.",
+                "all_titles": ["DeepMind publishes a robotics breakthrough"],
+                "all_summaries": ["DeepMind published a robotics breakthrough for dexterous tasks."],
+                "all_urls": ["https://example.com/9"],
+            },
+            {
+                "title": "Amazon expands consumer AI features",
+                "url": "https://example.com/10",
+                "sources": ["Reuters", "The Verge", "AP"],
+                "source_count": 3,
+                "summary": "Amazon expanded consumer AI features in its apps.",
+                "all_titles": ["Amazon expands consumer AI features"],
+                "all_summaries": ["Amazon expanded consumer AI features in its apps."],
+                "all_urls": ["https://example.com/10"],
+            },
+        ]
+
+        selected, _stats = select_top_stories(groups, limit=10)
+
+        self.assertEqual(len(selected), 10)
+        self.assertGreaterEqual(len({story["title"].split()[0].lower() for story in selected}), 7)
 
     def test_filter_excludes_press_release_and_classroom_noise(self) -> None:
         stories = [

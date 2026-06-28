@@ -5,9 +5,14 @@ from __future__ import annotations
 from .dedup import _title_similarity
 
 TOP_N = 10
-DUPLICATE_THRESHOLD = 0.64
-MAX_PER_COMPANY = 2
-MAX_PER_TOPIC = 2
+DUPLICATE_THRESHOLD = 0.78
+MAX_PER_COMPANY = 3
+MAX_PER_TOPIC = 3
+PRIMARY_QUALITY_FLOOR = 200
+SECONDARY_QUALITY_FLOOR = 165
+RECOVERY_QUALITY_FLOOR = 155
+REDDIT_QUALITY_FLOOR = 155
+FALLBACK_QUALITY_FLOOR = 120
 
 MAINSTREAM_SOURCE_BONUS = {
     "reuters": 70,
@@ -227,7 +232,7 @@ def select_top_stories(
     company_counts: dict[str, int] = {}
     topic_counts: dict[str, int] = {}
 
-    primary = [g for g in groups if g.get("source_count", 0) >= 3 and _story_quality_score(g) >= 260]
+    primary = [g for g in groups if g.get("source_count", 0) >= 3 and _story_quality_score(g) >= PRIMARY_QUALITY_FLOOR]
     primary.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
     selected: list[dict] = []
     for item in primary:
@@ -239,7 +244,7 @@ def select_top_stories(
     if len(selected) < limit:
         secondary = [
             g for g in groups
-            if 2 <= g.get("source_count", 0) < 3 and _story_quality_score(g) >= 220
+            if 2 <= g.get("source_count", 0) < 3 and _story_quality_score(g) >= SECONDARY_QUALITY_FLOOR
         ]
         secondary.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
         for g in secondary:
@@ -266,7 +271,7 @@ def select_top_stories(
                 "all_summaries": [post.get("summary") or ""] if post.get("summary") else [],
                 "social_fallback": "reddit",
             }
-            if _story_quality_score(item) >= 220 and _try_append_balanced(item, selected, company_counts, topic_counts):
+            if _story_quality_score(item) >= REDDIT_QUALITY_FLOOR and _try_append_balanced(item, selected, company_counts, topic_counts):
                 reddit_added += 1
             if len(selected) >= limit:
                 break
@@ -274,12 +279,47 @@ def select_top_stories(
     if len(selected) < limit:
         recovery = [
             g for g in groups
-            if g.get("source_count", 0) == 1 and _story_quality_score(g) >= 250
+            if g.get("source_count", 0) == 1 and _story_quality_score(g) >= RECOVERY_QUALITY_FLOOR
         ]
         recovery.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
         for g in recovery:
             if _try_append_balanced(g, selected, company_counts, topic_counts):
                 secondary_added += 1
+            if len(selected) >= limit:
+                break
+
+    if len(selected) < limit:
+        fallback_pool = [g for g in groups if _story_quality_score(g) >= FALLBACK_QUALITY_FLOOR]
+        fallback_pool.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
+        for g in fallback_pool:
+            if _append_unique_story(selected, g):
+                secondary_added += 1
+            if len(selected) >= limit:
+                break
+
+    if len(selected) < limit:
+        fallback_reddit: list[dict] = []
+        for post in reddit_stories:
+            post_date = post.get("date")
+            item = {
+                "title": post.get("title") or "",
+                "url": post.get("url") or "",
+                "sources": [post.get("source") or "Reddit"],
+                "source_count": 1,
+                "summary": post.get("summary") or "",
+                "date": post_date,
+                "first_published": post_date,
+                "all_urls": [post.get("url") or ""],
+                "source_homes": [post.get("source_home") or ""],
+                "all_titles": [post.get("title") or ""],
+                "all_summaries": [post.get("summary") or ""] if post.get("summary") else [],
+                "social_fallback": "reddit",
+            }
+            fallback_reddit.append(item)
+        fallback_reddit.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
+        for item in fallback_reddit:
+            if _story_quality_score(item) >= FALLBACK_QUALITY_FLOOR and _append_unique_story(selected, item):
+                reddit_added += 1
             if len(selected) >= limit:
                 break
 

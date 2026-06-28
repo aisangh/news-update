@@ -77,16 +77,14 @@ def _should_enrich_stories() -> bool:
     return True
 
 
-def _enrichment_limit(default: int = 3) -> int:
+def _enrichment_limit(default: int) -> int:
     raw = os.getenv("AI_NEWS_ENRICH_TOP_K")
     if raw:
         try:
             return max(0, int(raw))
         except ValueError:
             pass
-    if _running_in_kaggle():
-        return default
-    return max(default, 5)
+    return default
 
 
 def main() -> int:
@@ -241,19 +239,16 @@ def main() -> int:
 
     # Layer 5: reel content
     if _should_enrich_stories():
-        enrich_limit = min(len(selected), _enrichment_limit())
+        enrich_limit = min(len(selected), _enrichment_limit(len(selected)))
         if enrich_limit > 0:
-            print(f"🧠 Enriching top {enrich_limit} selected stories with article details...")
+            label = "all selected stories" if enrich_limit == len(selected) else f"{enrich_limit} selected stories"
+            print(f"🧠 Enriching {label} with article details...")
 
             def _enrich_progress(idx: int, total: int, story: dict, status: str) -> None:
                 title = str(story.get("title") or "").strip()
                 print(f"    [{idx}/{total}] {status}: {title}")
 
             enrich_story_summaries(selected[:enrich_limit], progress=_enrich_progress)
-            if len(selected) > enrich_limit:
-                print(
-                    f"    Skipped {len(selected) - enrich_limit} lower-priority stories to keep the notebook fast."
-                )
         else:
             print("🧠 Enrichment is enabled but the top-k limit is 0, so article fetching is skipped.")
     else:

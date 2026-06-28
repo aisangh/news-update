@@ -333,6 +333,69 @@ class ArticleSummaryFallbackTests(unittest.TestCase):
 
         self.assertEqual(selected[0]["url"], "https://example.com/ai-model-detailed")
 
+    def test_select_top_stories_balances_company_and_topic_spread(self) -> None:
+        groups = [
+            {
+                "title": "OpenAI releases new model for developers",
+                "url": "https://example.com/openai-1",
+                "sources": ["TechCrunch", "The Verge", "Wired"],
+                "source_count": 3,
+                "summary": "OpenAI released a new model for developers.",
+                "all_titles": ["OpenAI releases new model for developers"],
+                "all_summaries": ["OpenAI released a new model for developers."],
+                "all_urls": ["https://example.com/openai-1"],
+            },
+            {
+                "title": "OpenAI updates ChatGPT memory and search",
+                "url": "https://example.com/openai-2",
+                "sources": ["Reuters", "The Verge", "BBC"],
+                "source_count": 3,
+                "summary": "OpenAI improved ChatGPT memory and search.",
+                "all_titles": ["OpenAI updates ChatGPT memory and search"],
+                "all_summaries": ["OpenAI improved ChatGPT memory and search."],
+                "all_urls": ["https://example.com/openai-2"],
+            },
+            {
+                "title": "Anthropic opens up a new safety feature",
+                "url": "https://example.com/anthropic-1",
+                "sources": ["Reuters", "Fortune", "CNBC"],
+                "source_count": 3,
+                "summary": "Anthropic opened up a new safety feature.",
+                "all_titles": ["Anthropic opens up a new safety feature"],
+                "all_summaries": ["Anthropic opened up a new safety feature."],
+                "all_urls": ["https://example.com/anthropic-1"],
+            },
+            {
+                "title": "Apple Vision Pro exec is reportedly leaving for OpenAI",
+                "url": "https://example.com/apple-openai",
+                "sources": ["TechCrunch", "Bloomberg.com", "9to5Mac"],
+                "source_count": 3,
+                "summary": "Apple hardware talent is moving to OpenAI.",
+                "all_titles": ["Apple Vision Pro exec is reportedly leaving for OpenAI"],
+                "all_summaries": ["Apple hardware talent is moving to OpenAI."],
+                "all_urls": ["https://example.com/apple-openai"],
+            },
+            {
+                "title": "China's Zhipu is closing in on top U.S. AI models",
+                "url": "https://example.com/zhipu",
+                "sources": ["CNBC", "AP News"],
+                "source_count": 2,
+                "summary": "Zhipu is closing in on U.S. AI models.",
+                "all_titles": ["China's Zhipu is closing in on top U.S. AI models"],
+                "all_summaries": ["Zhipu is closing in on U.S. AI models."],
+                "all_urls": ["https://example.com/zhipu"],
+            },
+        ]
+
+        selected, _stats = select_top_stories(groups, limit=4)
+
+        self.assertLessEqual(
+            sum(1 for story in selected if "openai" in story["title"].lower()),
+            2,
+        )
+        self.assertTrue(any("anthropic" in story["title"].lower() for story in selected))
+        self.assertTrue(any("zhipu" in story["title"].lower() for story in selected))
+
     def test_filter_excludes_press_release_and_classroom_noise(self) -> None:
         stories = [
             {

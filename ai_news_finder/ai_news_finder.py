@@ -182,11 +182,11 @@ def main() -> int:
     # Sources used
     sources_used: list[str] = []
     seen_src: set[str] = set()
-    for story in all_raw:
-        s = story.get("source", "")
-        if s and s not in seen_src:
-            seen_src.add(s)
-            sources_used.append(s)
+    for story in selected:
+        for s in story.get("sources") or []:
+            if s and s not in seen_src:
+                seen_src.add(s)
+                sources_used.append(s)
 
     verified_count = sum(
         1 for s in selected

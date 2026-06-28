@@ -789,7 +789,7 @@ def _discover_from_publisher_search(title: str, source_home: str) -> str:
         )
         resp.raise_for_status()
     except Exception as exc:
-        logger.warning("Publisher site search failed (%s): %s", title, exc)
+        logger.debug("Publisher site search failed (%s): %s", title, exc)
         return ""
 
     for match in re.finditer(r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', resp.text, flags=re.IGNORECASE | re.DOTALL):
@@ -849,7 +849,7 @@ def discover_article_url(title: str, source_home: str) -> str:
         )
         resp.raise_for_status()
     except Exception as exc:
-        logger.warning("Article URL discovery failed (%s): %s", title, exc)
+        logger.debug("Article URL discovery failed (%s): %s", title, exc)
         return _discover_from_publisher_search(title, source_home)
 
     for match in re.finditer(
@@ -892,7 +892,7 @@ def discover_article_url_by_source(title: str, source_label: str) -> str:
         )
         resp.raise_for_status()
     except Exception as exc:
-        logger.warning("Article URL source-label discovery failed (%s): %s", title, exc)
+        logger.debug("Article URL source-label discovery failed (%s): %s", title, exc)
         return ""
 
     for match in re.finditer(

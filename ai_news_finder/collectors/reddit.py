@@ -82,6 +82,6 @@ def collect_reddit() -> list[dict]:
                 seen_titles.add(key)
                 stories.append(post)
         except Exception as exc:
-            logger.warning("Reddit failed (r/%s): %s", sub, exc)
+            logger.debug("Reddit failed (r/%s): %s", sub, exc)
 
     return stories

@@ -5,14 +5,7 @@ from __future__ import annotations
 from .dedup import _title_similarity
 
 TOP_N = 10
-DUPLICATE_THRESHOLD = 0.78
-MAX_PER_COMPANY = 3
-MAX_PER_TOPIC = 3
-PRIMARY_QUALITY_FLOOR = 200
-SECONDARY_QUALITY_FLOOR = 165
-RECOVERY_QUALITY_FLOOR = 155
-REDDIT_QUALITY_FLOOR = 155
-FALLBACK_QUALITY_FLOOR = 120
+DUPLICATE_THRESHOLD = 0.64
 
 MAINSTREAM_SOURCE_BONUS = {
     "reuters": 70,
@@ -67,41 +60,6 @@ LOW_SIGNAL_TITLE_HINTS = (
     "op-ed",
 )
 
-MAINSTREAM_FOCUS_HINTS = (
-    "openai",
-    "anthropic",
-    "claude",
-    "gemini",
-    "chatgpt",
-    "gpt-",
-    "model",
-    "launch",
-    "release",
-    "rollout",
-    "policy",
-    "regulation",
-    "safety",
-    "robot",
-    "robotics",
-    "chip",
-    "agents",
-    "agent",
-    "reasoning",
-    "multimodal",
-    "data center",
-)
-
-TOPIC_BUCKETS = {
-    "policy": ("policy", "regulation", "government", "lawmakers", "congress", "commerce department", "national security", "safety", "copyright"),
-    "product": ("launch", "released", "release", "rollout", "update", "feature", "chatgpt", "claude", "gemini", "openai"),
-    "hardware": ("chip", "gpu", "processor", "hardware", "vision pro", "smart glasses", "device", "inference", "silicon"),
-    "robotics": ("robot", "robotics", "humanoid", "automation"),
-    "research": ("research", "study", "paper", "model", "benchmark", "science", "nature", "systematic"),
-    "business": ("acquisition", "funding", "valuation", "ipo", "startup", "trillion", "market", "partner", "deal"),
-    "consumer": ("android", "iphone", "app", "consumer", "personal", "everyday", "assistant"),
-    "culture": ("author", "music", "film", "tv", "media", "creative", "artist", "culture"),
-}
-
 
 def _story_titles(story: dict) -> list[str]:
     titles = [story.get("title") or "", *(story.get("all_titles") or [])]
@@ -119,24 +77,6 @@ def _story_texts(story: dict) -> list[str]:
 
 def _story_urls(story: dict) -> set[str]:
     return {u for u in [story.get("url") or "", *(story.get("all_urls") or [])] if u}
-
-
-def _story_company_key(story: dict) -> str:
-    sources = " ".join(story.get("sources") or [])
-    title = " ".join(_story_titles(story))
-    text = f"{sources} {title}".lower()
-    for needle in ("openai", "anthropic", "google", "gemini", "meta", "microsoft", "apple", "nvidia", "claude", "mistral", "cohere", "amazon"):
-        if needle in text:
-            return needle
-    return "misc"
-
-
-def _story_topic_key(story: dict) -> str:
-    text = " ".join(_story_texts(story)).lower()
-    for topic, needles in TOPIC_BUCKETS.items():
-        if any(needle in text for needle in needles):
-            return topic
-    return "misc"
 
 
 def _story_quality_score(story: dict) -> int:
@@ -166,16 +106,27 @@ def _story_quality_score(story: dict) -> int:
             score += bonus
             break
     title = (story.get("title") or "").lower()
-    if any(term in title for term in MAINSTREAM_FOCUS_HINTS):
+    high_signal_terms = (
+        "openai",
+        "anthropic",
+        "claude",
+        "gemini",
+        "chatgpt",
+        "reasoning model",
+        "multimodal",
+        "agent",
+        "ai chip",
+        "data center",
+        "policy",
+        "regulation",
+        "safety",
+        "robot",
+        "robotics",
+        "launch",
+        "release",
+    )
+    if any(term in title for term in high_signal_terms):
         score += 12
-    if any(term in sources for term in LOW_SIGNAL_SOURCE_HINTS):
-        score -= 120
-    if any(term in title for term in LOW_SIGNAL_TITLE_HINTS):
-        score -= 120
-    if source_count <= 1:
-        score -= 20
-    elif source_count == 2:
-        score += 20
     return score
 
 
@@ -198,27 +149,6 @@ def _append_unique_story(selected: list[dict], candidate: dict) -> bool:
     return True
 
 
-def _balanced_caps_ok(candidate: dict, selected: list[dict], company_counts: dict[str, int], topic_counts: dict[str, int]) -> bool:
-    company = _story_company_key(candidate)
-    topic = _story_topic_key(candidate)
-    if company_counts.get(company, 0) >= MAX_PER_COMPANY:
-        return False
-    if topic_counts.get(topic, 0) >= MAX_PER_TOPIC:
-        return False
-    return not _is_duplicate_story(candidate, selected)
-
-
-def _try_append_balanced(candidate: dict, selected: list[dict], company_counts: dict[str, int], topic_counts: dict[str, int]) -> bool:
-    if not _balanced_caps_ok(candidate, selected, company_counts, topic_counts):
-        return False
-    selected.append(dict(candidate))
-    company = _story_company_key(candidate)
-    topic = _story_topic_key(candidate)
-    company_counts[company] = company_counts.get(company, 0) + 1
-    topic_counts[topic] = topic_counts.get(topic, 0) + 1
-    return True
-
-
 def select_top_stories(
     groups: list[dict],
     reddit_stories: list[dict] | None = None,
@@ -229,26 +159,21 @@ def select_top_stories(
     Returns (selected_stories, stats_dict).
     """
     reddit_stories = reddit_stories or []
-    company_counts: dict[str, int] = {}
-    topic_counts: dict[str, int] = {}
 
-    primary = [g for g in groups if g.get("source_count", 0) >= 3 and _story_quality_score(g) >= PRIMARY_QUALITY_FLOOR]
+    primary = [g for g in groups if g.get("source_count", 0) >= 3]
     primary.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
     selected: list[dict] = []
     for item in primary:
-        _try_append_balanced(item, selected, company_counts, topic_counts)
+        _append_unique_story(selected, item)
         if len(selected) >= limit:
             break
 
     secondary_added = 0
     if len(selected) < limit:
-        secondary = [
-            g for g in groups
-            if 2 <= g.get("source_count", 0) < 3 and _story_quality_score(g) >= SECONDARY_QUALITY_FLOOR
-        ]
+        secondary = [g for g in groups if g.get("source_count", 0) < 3]
         secondary.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
         for g in secondary:
-            if _try_append_balanced(g, selected, company_counts, topic_counts):
+            if _append_unique_story(selected, g):
                 secondary_added += 1
             if len(selected) >= limit:
                 break
@@ -271,54 +196,7 @@ def select_top_stories(
                 "all_summaries": [post.get("summary") or ""] if post.get("summary") else [],
                 "social_fallback": "reddit",
             }
-            if _story_quality_score(item) >= REDDIT_QUALITY_FLOOR and _try_append_balanced(item, selected, company_counts, topic_counts):
-                reddit_added += 1
-            if len(selected) >= limit:
-                break
-
-    if len(selected) < limit:
-        recovery = [
-            g for g in groups
-            if g.get("source_count", 0) == 1 and _story_quality_score(g) >= RECOVERY_QUALITY_FLOOR
-        ]
-        recovery.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
-        for g in recovery:
-            if _try_append_balanced(g, selected, company_counts, topic_counts):
-                secondary_added += 1
-            if len(selected) >= limit:
-                break
-
-    if len(selected) < limit:
-        fallback_pool = [g for g in groups if _story_quality_score(g) >= FALLBACK_QUALITY_FLOOR]
-        fallback_pool.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
-        for g in fallback_pool:
-            if _append_unique_story(selected, g):
-                secondary_added += 1
-            if len(selected) >= limit:
-                break
-
-    if len(selected) < limit:
-        fallback_reddit: list[dict] = []
-        for post in reddit_stories:
-            post_date = post.get("date")
-            item = {
-                "title": post.get("title") or "",
-                "url": post.get("url") or "",
-                "sources": [post.get("source") or "Reddit"],
-                "source_count": 1,
-                "summary": post.get("summary") or "",
-                "date": post_date,
-                "first_published": post_date,
-                "all_urls": [post.get("url") or ""],
-                "source_homes": [post.get("source_home") or ""],
-                "all_titles": [post.get("title") or ""],
-                "all_summaries": [post.get("summary") or ""] if post.get("summary") else [],
-                "social_fallback": "reddit",
-            }
-            fallback_reddit.append(item)
-        fallback_reddit.sort(key=lambda g: (_story_quality_score(g), g.get("source_count", 0)), reverse=True)
-        for item in fallback_reddit:
-            if _story_quality_score(item) >= FALLBACK_QUALITY_FLOOR and _append_unique_story(selected, item):
+            if _append_unique_story(selected, item):
                 reddit_added += 1
             if len(selected) >= limit:
                 break
